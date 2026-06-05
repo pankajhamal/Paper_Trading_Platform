@@ -92,3 +92,19 @@ backend/
 ├── README.md
 └── run.py
 ```
+
+
+## Setup
+
+### 1. Clone and create virtual Environment and activate virtual environment
+``` bash
+ python3 -m venv venv
+ source venv/bin/activate
+```
+
+### 2. Install Requirements
+``` bash
+pip install -r requirements.txt
+```
+
+## 3. Start the server
