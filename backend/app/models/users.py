@@ -13,4 +13,4 @@ class User(Base):
     role = Column(VARCHAR)
 
     wallet=relationship("Wallet", back_populates="user", uselist=False)
-    transaction=relationship("Transaction", back_populates="user")
+    transactions=relationship("Transaction", back_populates="user")
