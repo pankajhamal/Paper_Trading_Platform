@@ -16,12 +16,9 @@ def register_user(user: UserRegister, db: Session = Depends(get_db)):
   if existing_user:
     raise HTTPException(status_code=400, detail="Email already registered")
   
-  #hash password
-  print(user.password)
-  print(type(user.password))
-  print(len(user.password))
   hashed_password = hash_password(user.password)
 
+  
   #Create User
   new_user = User(
     full_name = user.full_name,
@@ -37,7 +34,7 @@ def register_user(user: UserRegister, db: Session = Depends(get_db)):
 
   #Auto create wallet whenever User is created
   wallet = Wallet(
-    user_id = new_user.id,
+    user_id = new_user.user_id,
     balance = 100000
   )
 
@@ -46,6 +43,6 @@ def register_user(user: UserRegister, db: Session = Depends(get_db)):
 
   return{
     "message": "User registered successfully",
-    "user_id": new_user.id,
+    "user_id": new_user.user_id,
     "user_name": new_user.full_name
   }

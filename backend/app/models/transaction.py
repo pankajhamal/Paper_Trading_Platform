@@ -5,10 +5,10 @@ from app.database.base import Base
 class Transaction(Base):
   __tablename__="transactions"
 
-  id = Column(Integer, primary_key=True)
+  transaction_id = Column(Integer, primary_key=True)
   type = Column(Text)
   amount = Column(DECIMAL)
-  user_id = Column(Integer, ForeignKey("users.id"))
+  user_id = Column(Integer, ForeignKey("users.user_id"))
   description = Column(String)
   created_at = Column(DateTime)
 
