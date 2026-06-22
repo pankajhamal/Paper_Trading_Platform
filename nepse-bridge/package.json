@@ -1,15 +1,15 @@
 {
   "name": "nepse-bridge",
   "module": "index.ts",
-  "type": "module",
-  "private": true,
   "devDependencies": {
     "@types/bun": "latest"
   },
   "peerDependencies": {
     "typescript": "^5"
   },
+  "private": true,
+  "type": "module",
   "dependencies": {
-    "nepse-api-unofficial": "^1.0.3"
+    "nepse-api-unofficial": "https://github.com/surajrimal07/nepse-api-unofficial.git"
   }
 }

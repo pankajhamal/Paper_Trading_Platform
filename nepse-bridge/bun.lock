@@ -5,7 +5,7 @@
     "": {
       "name": "nepse-bridge",
       "dependencies": {
-        "nepse-api-unofficial": "^1.0.3",
+        "nepse-api-unofficial": "https://github.com/surajrimal07/nepse-api-unofficial.git",
       },
       "devDependencies": {
         "@types/bun": "latest",
@@ -22,7 +22,7 @@
 
     "bun-types": ["bun-types@1.3.14", "", { "dependencies": { "@types/node": "*" } }, "sha512-4N0ig0fEomHt5R0KCFWjovxow98rIoRwKolrYdCcknNwMekCXRnWEUvgu5soYV8QXtVsrUD8B95MBOZGPvr6KQ=="],
 
-    "nepse-api-unofficial": ["nepse-api-unofficial@1.0.3", "", { "peerDependencies": { "typescript": ">=5.0.0" }, "optionalPeers": ["typescript"] }, "sha512-+PqTFvwNmRgryvK86cOlDW0gjBtJleFbdYP5Tk84ZqrsF0NMTOzydMAynl97TP6s0SpZuvgj1GR7qDl2K3q1BQ=="],
+    "nepse-api-unofficial": ["nepse-api-unofficial@github:surajrimal07/nepse-api-unofficial#82bc5ca", { "peerDependencies": { "typescript": ">=5.0.0" }, "optionalPeers": ["typescript"] }, "surajrimal07-nepse-api-unofficial-82bc5ca", "sha512-k2WxpR5lRCZGjXdXzn8s3oqGQ68A2uy58TbQbcE6LST13o3TjS1CpFbgRVAI137B9BNBj0RPuQw8m8TGn6rQaA=="],
 
     "typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
