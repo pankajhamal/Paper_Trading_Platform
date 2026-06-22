@@ -1,0 +1,15 @@
+{
+  "name": "nepse-bridge",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "nepse-api-unofficial": "^1.0.3"
+  }
+}
