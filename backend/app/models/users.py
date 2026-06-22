@@ -9,7 +9,6 @@ class User(Base):
     full_name = Column(String)
     email = Column(String, unique=True)
     password = Column(String)
-    balance = Column(Float, default=100000)
     role = Column(VARCHAR)
 
     wallet=relationship("Wallet", back_populates="user", uselist=False)

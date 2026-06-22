@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, Float, VARCHAR, DateTime
 from app.database.base import Base
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 
 class Stock(Base):
   __tablename__="stocks"
@@ -22,6 +22,6 @@ class Stock(Base):
   low_price = Column(Float, default=0.0)
   volume = Column(Integer, default=0)
 
-  last_updated = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+  last_updated = Column(DateTime(timezone=True), default=lambda:datetime.utcnow(), onupdate=datetime.utcnow())
 
   portfolio = relationship("Portfolio", back_populates="stock")

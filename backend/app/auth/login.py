@@ -21,10 +21,11 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
     raise HTTPException(status_code=400, detail="Invalid Credentials")
   
   token = create_access_token(
-    data={"user_id": db_user.id, "email": db_user.email}
+    data={"user_id": db_user.user_id, "email": db_user.email}
   )
 
   return{
     "access_token": token,
+    "email": db_user.email,
     "token_type": "Bearer"
   }
