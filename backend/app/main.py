@@ -8,6 +8,7 @@ import asyncio
 #Import Routes
 from app.auth.register import router as register_router
 from app.auth.login import router as login_router
+from app.routes.trade import router as trade_router
 
 Base.metadata.create_all(bind=engine) 
 
@@ -27,3 +28,4 @@ def health_check():
 
 app.include_router(register_router)
 app.include_router(login_router)
+app.include_router(trade_router)

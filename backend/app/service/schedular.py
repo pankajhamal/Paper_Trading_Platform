@@ -14,10 +14,10 @@ async def update_all_stock_prices():
     Periodically fetches the entire NEPSE market, sorts by volume,
     and updates the top 50 stocks in the database.
     """
+    await asyncio.sleep(5)
     while True:
         # Run every 5 minutes (300 seconds)
-        await asyncio.sleep(5)
-        
+        await asyncio.sleep(300)
         logger.info("Starting background update for top 50 stocks...")
         
         db_generator = get_db()
@@ -40,7 +40,6 @@ async def update_all_stock_prices():
             sorted_stocks = sorted(market_data, key=get_volume, reverse=True)
             # top_50 = sorted_stocks[:50]
             all_stocks = sorted_stocks
-            print(all_stocks)
             
             # 3. Update database rows
             for item in all_stocks:
@@ -54,9 +53,9 @@ async def update_all_stock_prices():
                 volume = get_volume(item)
                 change = float(item.get("priceChange") or item.get("change") or 0.0)
                 pct_change = float(item.get("percentageChange") or item.get("percent_change") or 0.0)
-                open_price = float(item.get("openPrice"))
-                high_price = float(item.get("highPrice"))
-                low_price = float(item.get("lowPrice"))
+                open_price = float(item.get("openPrice") or 0.0)
+                high_price = float(item.get("highPrice") or 0.0)
+                low_price = float(item.get("lowPrice") or 0.0)
 
                 
                 existing_stock = db.query(Stock).filter(Stock.symbol == symbol).first()
@@ -95,4 +94,4 @@ async def update_all_stock_prices():
         finally:
             db.close()
 
-        await asyncio.sleep(300)
+        
