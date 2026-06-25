@@ -179,3 +179,147 @@ async def buy_stock(
         "execution_breakdown": price_breakdown,
         "remaining_wallet_balance": wallet.balance
     }
+
+#Sell stock route and logic # app/api/trade.py (Append this route to your existing trade file)
+from app.schemas.trade import StockSell
+from app.service.nepse import generate_simulated_bid_depth  # Import the new helper
+
+@router.post("/sell", status_code=status.HTTP_201_CREATED)
+async def sell_stock(
+    payload: StockSell, 
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    symbol = payload.symbol.upper().strip()
+    quantity = payload.quantity
+
+    # 1. Verify Stock exists in your local SQL DB
+    stock = db.query(Stock).filter(Stock.symbol == symbol).first()
+    if not stock:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail=f"Stock '{symbol}' not found in database."
+        )
+
+    # 2. Open Database Transaction with pessimistic locking
+    try:
+        # A. Verify User owns enough shares of this stock in their Portfolio
+        portfolio_entry = db.query(Portfolio).filter(
+            Portfolio.user_id == current_user.user_id,
+            Portfolio.stock_id == stock.stock_id
+        ).with_for_update().first()
+
+        if not portfolio_entry or portfolio_entry.quantity < quantity:
+            available_qty = portfolio_entry.quantity if portfolio_entry else 0
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Insufficient holdings. You own {available_qty} shares of {symbol}, but requested to sell {quantity}."
+            )
+
+        # B. Retrieve Order Book from RAM Cache (Or generate Simulated Bids if off-hours)
+        buy_levels = []
+        execution_mode = "Live Market Depth (RAM Cache)"
+
+        cached_data = LIVE_MARKET_DEPTH.get(symbol)
+        if cached_data:
+            # We look at 'buyMarketDepthList' (bids) because we are selling to pending buyers
+            buy_levels = cached_data.get("buyMarketDepthList") or []
+
+        # If cache is empty (Market is closed or offline), generate Synthetic Bids in RAM
+        if not buy_levels:
+            execution_mode = "Simulated Depth (EOD Price Fallback)"
+            buy_levels = generate_simulated_bid_depth(stock.last_traded_price)
+
+        # C. WALK THE ORDER BOOK BIDS (The selling math)
+        remaining_qty_to_sell = quantity
+        total_revenue = 0.0
+        price_breakdown = []
+
+        for level in buy_levels:
+            level_qty = int(level.get("quantity") or 0)
+            level_price = float(level.get("price") or 0.0)
+
+            if level_qty <= 0 or level_price <= 0:
+                continue
+
+            if remaining_qty_to_sell <= level_qty:
+                # Fully complete our sale at this bid price level
+                total_revenue += remaining_qty_to_sell * level_price
+                price_breakdown.append(f"{remaining_qty_to_sell} shares @ Rs. {level_price}")
+                remaining_qty_to_sell = 0
+                break
+            else:
+                # Consume this entire buyer queue and move to the next lower bid price
+                total_revenue += level_qty * level_price
+                price_breakdown.append(f"{level_qty} shares @ Rs. {level_price}")
+                remaining_qty_to_sell -= level_qty
+
+        # If we ran out of buyers on the book before our order completed
+        if remaining_qty_to_sell > 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"Insufficient market demand. You wanted to sell {quantity} shares, "
+                    f"but there are only {quantity - remaining_qty_to_sell} buyers available."
+                )
+            )
+
+        average_price = total_revenue / quantity
+
+        # Convert to Decimal for database type-safety
+        total_revenue_dec = Decimal(str(total_revenue))
+        average_price_dec = Decimal(str(average_price))
+
+        # D. Credit Wallet
+        wallet = db.query(Wallet).filter(Wallet.user_id == current_user.user_id).with_for_update().first()
+        if not wallet:
+            raise HTTPException(status_code=404, detail="Wallet not found.")
+
+        wallet_balance_dec = Decimal(str(wallet.balance))
+        wallet.balance = float(wallet_balance_dec + total_revenue_dec)
+        
+        if hasattr(current_user, 'balance'):
+            current_user.balance = float(Decimal(str(current_user.balance)) + total_revenue_dec)
+
+        # E. Update Portfolio
+        # NOTE: Selling shares does NOT change the 'average_price' of remaining shares
+        portfolio_entry.quantity -= quantity
+        
+        if portfolio_entry.quantity == 0:
+            # Delete portfolio record entirely if they own 0 shares (keeps DB clean)
+            db.delete(portfolio_entry)
+
+        # F. Log Transaction using your exact Transaction columns
+        breakdown_str = ", ".join(price_breakdown)
+        transaction_log = Transaction(
+            user_id=current_user.user_id,
+            type="SELL",
+            amount=total_revenue_dec,
+            description=f"Sold {quantity} shares of {symbol}. Mode: {execution_mode}. Breakdown: {breakdown_str}",
+            created_at=datetime.utcnow()
+        )
+        db.add(transaction_log)
+
+        # Commit all modifications together
+        db.commit()
+
+    except HTTPException as he:
+        db.rollback()
+        raise he
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error executing sell order for {symbol}: {e}")
+        raise HTTPException(status_code=500, detail="Transaction failed due to an internal database error.")
+
+    # Determine execution mode string for response
+    execution_mode_str = "Offline (Closing Price)" if not cached_data else "Live (Market Depth)"
+
+    return {
+        "message": f"Stock sold successfully [{execution_mode_str}].",
+        "symbol": symbol,
+        "quantity_sold": quantity,
+        "weighted_average_price": float(average_price_dec),
+        "total_revenue": float(total_revenue_dec),
+        "execution_breakdown": price_breakdown,
+        "remaining_wallet_balance": wallet.balance
+    }

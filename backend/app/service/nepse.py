@@ -25,6 +25,25 @@ def generate_simulated_depth(base_price: float) -> list:
         {"quantity": random.randint(5000, 20000), "price": base_price + 5.0}
     ]
 
+def generate_simulated_bid_depth(base_price: float) -> list:
+    """
+    Generates a simulated, randomized 5-level buying order book (bids)
+    around a base closing price for high-fidelity offline selling.
+    """
+    import random
+    return [
+        # Level 1 Bid: Highest price buyers are offering
+        {"quantity": random.randint(100, 1000), "price": base_price - 1.0},
+        # Level 2 Bid
+        {"quantity": random.randint(500, 2000), "price": base_price - 2.0},
+        # Level 3 Bid
+        {"quantity": random.randint(1000, 5000), "price": base_price - 3.0},
+        # Level 4 Bid
+        {"quantity": random.randint(2000, 10000), "price": base_price - 4.0},
+        # Level 5 Bid: Lowest price buyers are offering
+        {"quantity": random.randint(5000, 20000), "price": base_price - 5.0}
+]
+
 class NepseService:
     def __init__(self, bridge_url: str = "http://localhost:3000"):
         self.bridge_url = bridge_url
