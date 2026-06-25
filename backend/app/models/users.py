@@ -14,3 +14,4 @@ class User(Base):
     wallet=relationship("Wallet", back_populates="user", uselist=False)
     transactions=relationship("Transaction", back_populates="user")
     portfolio = relationship("Portfolio", back_populates="user", cascade="all, delete-orphan")
+    orders=relationship("Order", back_populates="user", cascade="all, delete-orphan")

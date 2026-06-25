@@ -3,7 +3,7 @@ from .wallet import Wallet
 from .transaction import Transaction
 from .portfolio import Portfolio
 from .stock import Stock
-
+from .order import Order
 
 __all__ = [
     "Stock",
@@ -11,4 +11,5 @@ __all__ = [
     "Portfolio",
     "Transaction",
     "User",
+    "Order",
 ]

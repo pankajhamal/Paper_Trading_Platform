@@ -6,18 +6,20 @@ from app.database.connection import get_db
 from app.models.stock import Stock
 from app.service.nepse import NepseService
 
+from app.service.cache import LIVE_MARKET_DEPTH
+
+
 logger = logging.getLogger(__name__)
 nepse_service = NepseService()
 
 async def update_all_stock_prices():
     """
     Periodically fetches the entire NEPSE market, sorts by volume,
-    and updates the top 50 stocks in the database.
+    and updates stocks in the database.
     """
-    await asyncio.sleep(5)
     while True:
         # Run every 5 minutes (300 seconds)
-        await asyncio.sleep(300)
+        await asyncio.sleep(5)
         logger.info("Starting background update for top 50 stocks...")
         
         db_generator = get_db()
@@ -43,6 +45,13 @@ async def update_all_stock_prices():
             
             # 3. Update database rows
             for item in all_stocks:
+
+                LIVE_MARKET_DEPTH.clear()
+                for item in market_data:
+                    symbol = item.get("symbol")
+                    if symbol:
+                        LIVE_MARKET_DEPTH[symbol] = item
+                        
                 symbol = item.get("symbol")
                 if not symbol:
                     continue
@@ -93,5 +102,7 @@ async def update_all_stock_prices():
             logger.error(f"Failed to process top 50 stock update: {e}")
         finally:
             db.close()
+
+        await asyncio.sleep(300)
 
         

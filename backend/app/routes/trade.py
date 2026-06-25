@@ -13,6 +13,8 @@ from app.models.portfolio import Portfolio
 from app.models.transaction import Transaction
 from app.models.users import User
 from app.auth.dependencies import get_current_user
+from app.service.cache import LIVE_MARKET_DEPTH  # Import RAM cache
+from app.service.nepse import generate_simulated_depth  # Import offline fallback helper
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/trade", tags=["Trading"])
@@ -26,26 +28,70 @@ async def buy_stock(
     symbol = payload.symbol.upper().strip()
     quantity = payload.quantity
 
-    # 1. Verify Stock exists and has a valid price
+    # 1. Verify Stock exists in your local SQL DB
     stock = db.query(Stock).filter(Stock.symbol == symbol).first()
     if not stock:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, 
-            detail=f"Stock '{symbol}' not found in the database."
+            detail=f"Stock '{symbol}' not found in the database. Please wait for background sync."
         )
 
-    price = stock.last_traded_price
-    if price <= 0:
+    # 2. Retrieve Order Book from RAM Cache (Or generate Simulated Depth if off-hours)
+    sell_levels = []
+    execution_mode = "Live Market Depth (RAM Cache)"
+
+    cached_data = LIVE_MARKET_DEPTH.get(symbol)
+    if cached_data:
+        # NEPSE standard JSON key for asks is 'sellMarketDepthList'
+        sell_levels = cached_data.get("sellMarketDepthList") or []
+
+    # If cache is empty (bridge offline or market closed), generate Synthetic Depth in RAM
+    if not sell_levels:
+        execution_mode = "Simulated Depth (EOD Price Fallback)"
+        sell_levels = generate_simulated_depth(stock.last_traded_price)
+
+    # 3. THE ORDER BOOK WALK ENGINE (The core math)
+    remaining_qty_to_buy = quantity
+    total_cost = 0.0
+    price_breakdown = []
+
+    for level in sell_levels:
+        level_qty = int(level.get("quantity") or 0)
+        level_price = float(level.get("price") or level.get("rate") or 0.0)
+
+        if level_qty <= 0 or level_price <= 0:
+            continue
+
+        if remaining_qty_to_buy <= level_qty:
+            # We can fulfill the entire remaining order at this price level
+            total_cost += remaining_qty_to_buy * level_price
+            price_breakdown.append(f"{remaining_qty_to_buy} shares @ Rs. {level_price}")
+            remaining_qty_to_buy = 0
+            break
+        else:
+            # Consume this entire price level and move to the next higher level
+            total_cost += level_qty * level_price
+            price_breakdown.append(f"{level_qty} shares @ Rs. {level_price}")
+            remaining_qty_to_buy -= level_qty
+
+    # If the order book (real or simulated) ran out of sellers before order was complete
+    if remaining_qty_to_buy > 0:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, 
-            detail="Trading is currently unavailable for this stock (price is zero or invalid)."
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Insufficient market supply. You requested {quantity} shares, "
+                f"but only {quantity - remaining_qty_to_buy} shares are available for purchase."
+            )
         )
 
-    # Convert prices to Decimal to match your Numeric(12, 2) columns perfectly
-    price_dec = Decimal(str(price))
-    total_cost_dec = price_dec * Decimal(str(quantity))
+    # Calculate final weighted average purchase price
+    average_price = total_cost / quantity
 
-    # 2. Open an Atomic Database Transaction Block
+    # Convert values to Decimal for database type-safety
+    total_cost_dec = Decimal(str(total_cost))
+    average_price_dec = Decimal(str(average_price))
+
+    # 4. Open an Atomic Database Transaction Block
     try:
         # Fetch wallet with locking to prevent double-spending
         wallet = db.query(Wallet).filter(Wallet.user_id == current_user.user_id).with_for_update().first()
@@ -65,8 +111,7 @@ async def buy_stock(
                 detail=f"Insufficient balance. Required: Rs. {total_cost_dec:,.2f}, Available: Rs. {wallet_balance_dec:,.2f}"
             )
 
-        # A. Deduct Money from Wallet (storing back as float or decimal depending on model types)
-        # Assuming wallet.balance is a Float/Numeric. If it is Float, cast back to float.
+        # A. Deduct Money from Wallet (storing back as float)
         wallet.balance = float(wallet_balance_dec - total_cost_dec)
         
         if hasattr(current_user, 'balance'):
@@ -96,16 +141,17 @@ async def buy_stock(
                 user_id=current_user.user_id,
                 stock_id=stock.stock_id,
                 quantity=quantity,
-                average_price=price_dec
+                average_price=average_price_dec
             )
             db.add(portfolio_entry)
 
         # C. Log the Transaction using your exact Transaction columns
+        breakdown_str = ", ".join(price_breakdown)
         transaction_log = Transaction(
             user_id=current_user.user_id,
             type="BUY",  # mapped to your 'type' column
             amount=total_cost_dec,  # mapped to your 'amount' column (Decimal)
-            description=f"Purchased {quantity} shares of {symbol} at Rs. {price}",  # mapped to 'description'
+            description=f"Purchased {quantity} shares of {symbol}. Mode: {execution_mode}. Breakdown: {breakdown_str}",  # mapped to 'description'
             created_at=datetime.utcnow()  # mapped to your 'created_at' column
         )
         db.add(transaction_log)
@@ -125,10 +171,11 @@ async def buy_stock(
         )
 
     return {
-        "message": "Stock purchased successfully.",
+        "message": f"Stock purchased successfully [{execution_mode}].",
         "symbol": symbol,
         "quantity_purchased": quantity,
-        "price_per_share": price,
+        "weighted_average_price": float(average_price_dec),
         "total_cost": float(total_cost_dec),
+        "execution_breakdown": price_breakdown,
         "remaining_wallet_balance": wallet.balance
     }
