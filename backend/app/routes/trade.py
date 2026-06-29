@@ -39,6 +39,7 @@ async def buy_stock(
     # 2. Retrieve Order Book from RAM Cache (Or generate Simulated Depth if off-hours)
     sell_levels = []
     execution_mode = "Live Market Depth (RAM Cache)"
+    is_live_execution = True #assume market is live
 
     cached_data = LIVE_MARKET_DEPTH.get(symbol)
     if cached_data:
@@ -47,6 +48,7 @@ async def buy_stock(
 
     # If cache is empty (bridge offline or market closed), generate Synthetic Depth in RAM
     if not sell_levels:
+        is_live_execution = False
         execution_mode = "Simulated Depth (EOD Price Fallback)"
         sell_levels = generate_simulated_depth(stock.last_traded_price)
 
@@ -57,7 +59,7 @@ async def buy_stock(
 
     for level in sell_levels:
         level_qty = int(level.get("quantity") or 0)
-        level_price = float(level.get("price") or level.get("rate") or 0.0)
+        level_price = float(level.get("price") or level.get("rate") or level.get("orderBookOrderPrice") or 0.0)
 
         if level_qty <= 0 or level_price <= 0:
             continue
@@ -169,9 +171,11 @@ async def buy_stock(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
             detail="Transaction failed due to an internal database error."
         )
+    
+    execution_mode_str = "Live (Market Depth)" if is_live_execution else "Live (Market Depth)"
 
     return {
-        "message": f"Stock purchased successfully [{execution_mode}].",
+        "message": f"Stock purchased successfully [{execution_mode_str}].",
         "symbol": symbol,
         "quantity_purchased": quantity,
         "weighted_average_price": float(average_price_dec),

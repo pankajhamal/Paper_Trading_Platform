@@ -1,48 +1,34 @@
 import httpx
-from fastapi import HTTPException, status
-from typing import List
+from typing import List, Dict, Any
 from app.core.logger import get_logger
 import logging
 import random
 
 logger = logging.getLogger(__name__)
 
-def generate_simulated_depth(base_price: float) -> list:
+def generate_simulated_depth(base_price: float) -> List[Dict[str, Any]]:
     """
-    Generates a simulated, randomized 5-level selling order book (asks)
-    around a base closing price for high-fidelity offline trading.
+    Generates a standardized 5-level selling order book (asks).
     """
     return [
-        # Level 1 Ask: Small quantity close to base price
         {"quantity": random.randint(100, 1000), "price": base_price + 1.0},
-        # Level 2 Ask
         {"quantity": random.randint(500, 2000), "price": base_price + 2.0},
-        # Level 3 Ask
         {"quantity": random.randint(1000, 5000), "price": base_price + 3.0},
-        # Level 4 Ask
         {"quantity": random.randint(2000, 10000), "price": base_price + 4.0},
-        # Level 5 Ask: Large supply further away from base price
         {"quantity": random.randint(5000, 20000), "price": base_price + 5.0}
     ]
 
-def generate_simulated_bid_depth(base_price: float) -> list:
+def generate_simulated_bid_depth(base_price: float) -> List[Dict[str, Any]]:
     """
-    Generates a simulated, randomized 5-level buying order book (bids)
-    around a base closing price for high-fidelity offline selling.
+    Generates a standardized 5-level buying order book (bids).
     """
-    import random
     return [
-        # Level 1 Bid: Highest price buyers are offering
         {"quantity": random.randint(100, 1000), "price": base_price - 1.0},
-        # Level 2 Bid
         {"quantity": random.randint(500, 2000), "price": base_price - 2.0},
-        # Level 3 Bid
         {"quantity": random.randint(1000, 5000), "price": base_price - 3.0},
-        # Level 4 Bid
         {"quantity": random.randint(2000, 10000), "price": base_price - 4.0},
-        # Level 5 Bid: Lowest price buyers are offering
         {"quantity": random.randint(5000, 20000), "price": base_price - 5.0}
-]
+    ]
 
 class NepseService:
     def __init__(self, bridge_url: str = "http://localhost:3000"):
@@ -65,8 +51,9 @@ class NepseService:
 
     async def get_market_depth(self, symbol: str) -> dict:
         """
-        Attempts to fetch live market depth from Bun.
-        Returns empty dict on failure/off-hours to trigger local fallback.
+        Fetches live market depth and normalizes the data structure.
+        Always returns standard keys: 'buyMarketDepthList' and 'sellMarketDepthList'
+        using 'price' and 'quantity'.
         """
         symbol = symbol.upper().strip()
         async with httpx.AsyncClient() as client:
@@ -75,9 +62,40 @@ class NepseService:
                     f"{self.bridge_url}/depth/{symbol}", timeout=5.0
                 )
                 if response.status_code == 200:
-                    return response.json()
+                    raw_data = response.json()
+                    
+                    # Safely extract raw depth lists
+                    market_depth = raw_data.get("marketDepth", {})
+                    raw_buys = market_depth.get("buyMarketDepthList", [])
+                    raw_sells = market_depth.get("sellMarketDepthList", [])
+                    
+                    # Normalize key names (convert orderBookOrderPrice -> price)
+                    normalized_buys = [
+                        {
+                            "quantity": int(level.get("quantity") or 0),
+                            "price": float(level.get("orderBookOrderPrice") or 0.0)
+                        }
+                        for level in raw_buys
+                    ]
+                    
+                    normalized_sells = [
+                        {
+                            "quantity": int(level.get("quantity") or 0),
+                            "price": float(level.get("orderBookOrderPrice") or 0.0)
+                        }
+                        for level in raw_sells
+                    ]
+                    
+                    return {
+                        "buyMarketDepthList": normalized_buys,
+                        "sellMarketDepthList": normalized_sells
+                    }
+                    
             except Exception as e:
                 logger.warning(f"Live market depth for {symbol} unavailable: {e}")
-            return {}
-      
-      
+            
+            # Return empty standardized lists on failure
+            return {
+                "buyMarketDepthList": [],
+                "sellMarketDepthList": []
+            }

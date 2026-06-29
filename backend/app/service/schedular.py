@@ -1,13 +1,11 @@
-# This is responsible for updating the database every 5 minutes
+# app/services/scheduler.py
 import asyncio
 import logging
 from sqlalchemy.orm import Session
 from app.database.connection import get_db
 from app.models.stock import Stock
 from app.service.nepse import NepseService
-
 from app.service.cache import LIVE_MARKET_DEPTH
-
 
 logger = logging.getLogger(__name__)
 nepse_service = NepseService()
@@ -15,13 +13,13 @@ nepse_service = NepseService()
 async def update_all_stock_prices():
     """
     Periodically fetches the entire NEPSE market, sorts by volume,
-    and updates stocks in the database.
+    deduplicates the list, and updates all stocks in the database.
     """
+    # Wait 5 seconds on startup once
+    await asyncio.sleep(5)
+    
     while True:
-        # Run every 5 minutes (300 seconds)
-        await asyncio.sleep(5)
-        logger.info("Starting background update for top 50 stocks...")
-        
+        logger.info("Starting background update for NEPSE stocks...")
         db_generator = get_db()
         db: Session = next(db_generator)
         
@@ -30,31 +28,41 @@ async def update_all_stock_prices():
             market_data = await nepse_service.get_live_market()
             if not market_data:
                 logger.warning("Empty market data received. Skipping cycle.")
+                await asyncio.sleep(300)
                 continue
             
-            logger.info(f"Received {len(market_data)} total stocks from the NEPSE Bun bridge.")
+            logger.info(f"Received {len(market_data)} raw stocks from the NEPSE Bun bridge.")
+
+            # 2. DEDUPLICATE incoming stocks by symbol (Prevents UniqueViolation DB crashes)
+            unique_stocks = []
+            seen_symbols = set()
+            for item in market_data:
+                symbol = item.get("symbol")
+                if symbol:
+                    symbol = symbol.strip().upper()
+                    if symbol not in seen_symbols:
+                        seen_symbols.add(symbol)
+                        unique_stocks.append(item)
             
+            logger.info(f"Deduplicated to {len(unique_stocks)} unique stocks.")
+
+            # 3. UPDATE RAM CACHE using deduplicated list
+            LIVE_MARKET_DEPTH.clear()
+            for item in unique_stocks:
+                symbol = item.get("symbol").strip().upper()
+                LIVE_MARKET_DEPTH[symbol] = item
+
             # Helper to safely extract trading volume for sorting
             def get_volume(item):
                 return int(item.get("totalTradeQuantity") or item.get("volume") or item.get("totalTradedQuantity") or 0)
 
-            # 2. Sort stocks descending by trading volume
-            sorted_stocks = sorted(market_data, key=get_volume, reverse=True)
-            # top_50 = sorted_stocks[:50]
+            # 4. Sort unique stocks descending by trading volume
+            sorted_stocks = sorted(unique_stocks, key=get_volume, reverse=True)
             all_stocks = sorted_stocks
             
-            # 3. Update database rows
+            # 5. Update database rows
             for item in all_stocks:
-
-                LIVE_MARKET_DEPTH.clear()
-                for item in market_data:
-                    symbol = item.get("symbol")
-                    if symbol:
-                        LIVE_MARKET_DEPTH[symbol] = item
-                        
-                symbol = item.get("symbol")
-                if not symbol:
-                    continue
+                symbol = item.get("symbol").strip().upper()
                 
                 # Safely extract price and change details
                 ltp = item.get("ltp") or item.get("lastTradedPrice") or item.get("closePrice") or 0.0
@@ -62,11 +70,12 @@ async def update_all_stock_prices():
                 volume = get_volume(item)
                 change = float(item.get("priceChange") or item.get("change") or 0.0)
                 pct_change = float(item.get("percentageChange") or item.get("percent_change") or 0.0)
+                
+                # Safe conversions to prevent NoneType crashes
                 open_price = float(item.get("openPrice") or 0.0)
                 high_price = float(item.get("highPrice") or 0.0)
                 low_price = float(item.get("lowPrice") or 0.0)
 
-                
                 existing_stock = db.query(Stock).filter(Stock.symbol == symbol).first()
                 
                 if existing_stock:
@@ -80,7 +89,7 @@ async def update_all_stock_prices():
                     existing_stock.high_price = high_price
                     existing_stock.low_price = low_price
                 else:
-                    # Create new record if stock is not in our database yet
+                    # Create new record safely
                     existing_stock = Stock(
                         symbol=symbol,
                         company_name=company_name,
@@ -95,14 +104,13 @@ async def update_all_stock_prices():
                     db.add(existing_stock)
             
             db.commit()
-            logger.info("Successfully updated Top 50 stocks in database.")
+            logger.info(f"Successfully updated {len(all_stocks)} unique stocks in database and RAM cache.")
             
         except Exception as e:
             db.rollback()
-            logger.error(f"Failed to process top 50 stock update: {e}")
+            logger.error(f"Failed to process stock update: {e}")
         finally:
             db.close()
 
+        # Sleep for 5 minutes before running the next update cycle
         await asyncio.sleep(300)
-
-        

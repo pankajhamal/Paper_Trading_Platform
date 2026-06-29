@@ -56,10 +56,9 @@ export default function Register() {
             
             {/* Full Name Input */}
             <div className="space-y-1.5">
-              <label className="text-[10px] font-bold tracking-wider text-slate-400 font-mono block">FULL NAME</label>
               <div className="relative">
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
-                  <User className="w-4 h-4" />
+              <label className="text-[10px] font-bold tracking-wider text-slate-400 font-mono block">FULL NAME</label>
                 </span>
                 <input 
                   type="text" 
@@ -119,6 +118,7 @@ export default function Register() {
                 className="mt-0.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500/20"
               />
               <label htmlFor="agree" className="text-[11px] text-slate-500 cursor-pointer select-none leading-relaxed">
+                  <User className="w-4 h-4" />
                 I understand this is a <span className="text-emerald-600 font-semibold">paper trading workspace</span> using fake money. No real capital or physical broker connections are involved.
               </label>
             </div>
