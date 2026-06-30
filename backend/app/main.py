@@ -4,6 +4,8 @@ from app.database.connection import engine
 from app.service.schedular import update_all_stock_prices
 from app.models import User, Wallet, Transaction, Stock, Portfolio, Order
 import asyncio
+from fastapi.middleware.cors import CORSMiddleware
+
 
 #Import Routes
 from app.auth.register import router as register_router
@@ -17,6 +19,20 @@ app = FastAPI(
     title="Paper Trading Platform",
     version="1.0.0"
 )
+
+origins = [
+    "http://localhost:5173",  # Default Vite port
+    "http://localhost:3000",  # Alternative React port
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],      # Allows GET, POST, OPTIONS, PUT, DELETE
+    allow_headers=["*"],      # Allows headers like Content-Type, Authorization
+)
+
 
 @app.on_event("startup")
 async def startup_event():

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useAppStore } from '../store/useAppStore'; // 1. Import your global store
 import { Mail, Lock, User, ArrowLeft, ShieldCheck } from 'lucide-react';
 
 export default function Register() {
@@ -9,14 +10,22 @@ export default function Register() {
   const [password, setPassword] = useState('');
   const [agreeTerms, setAgreeTerms] = useState(false);
 
-  const handleRegister = (e) => {
+  // 2. Subscribe to the registration state and actions
+  const { registerUser, authError, isLoading } = useAppStore();
+
+  const handleRegister = async (e) => {
     e.preventDefault();
     if (!agreeTerms) {
       alert("Please agree to the simulated environment rules.");
       return;
     }
-    console.log("Registering user:", { fullName, email, password });
-    navigate('/'); // Redirect to main workspace
+    
+    // 3. Dispatch the registration request to the backend
+    const success = await registerUser(fullName, email, password);
+    
+    if (success) {
+      navigate('/'); // Redirect to the main workspace on success
+    }
   };
 
   return (
@@ -51,14 +60,22 @@ export default function Register() {
             <p className="text-xs text-slate-500 mt-1">Get रू. 5 Lakhs in virtual cash to start</p>
           </div>
 
+          {/* 4. Display Backend Auth Errors if registration fails */}
+          {authError && (
+            <div className="mb-5 p-3 text-xs bg-rose-50 border border-rose-200 text-rose-600 rounded-lg text-center font-medium">
+              {authError}
+            </div>
+          )}
+
           {/* Form */}
           <form onSubmit={handleRegister} className="space-y-4">
             
             {/* Full Name Input */}
             <div className="space-y-1.5">
+              <label className="text-[10px] font-bold tracking-wider text-slate-400 font-mono block">FULL NAME</label>
               <div className="relative">
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
-              <label className="text-[10px] font-bold tracking-wider text-slate-400 font-mono block">FULL NAME</label>
+                  <User className="w-4 h-4" />
                 </span>
                 <input 
                   type="text" 
@@ -118,17 +135,17 @@ export default function Register() {
                 className="mt-0.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500/20"
               />
               <label htmlFor="agree" className="text-[11px] text-slate-500 cursor-pointer select-none leading-relaxed">
-                  <User className="w-4 h-4" />
                 I understand this is a <span className="text-emerald-600 font-semibold">paper trading workspace</span> using fake money. No real capital or physical broker connections are involved.
               </label>
             </div>
 
-            {/* Submit Button */}
+            {/* Submit Button (Disabled during API call) */}
             <button 
               type="submit"
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 rounded-lg text-sm transition cursor-pointer shadow-md shadow-emerald-600/10"
+              disabled={isLoading}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white font-semibold py-2.5 rounded-lg text-sm transition cursor-pointer shadow-md shadow-emerald-600/10"
             >
-              Create Account
+              {isLoading ? "Creating Profile..." : "Create Account"}
             </button>
           </form>
 
