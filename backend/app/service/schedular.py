@@ -114,3 +114,64 @@ async def update_all_stock_prices():
 
         # Sleep for 5 minutes before running the next update cycle
         await asyncio.sleep(300)
+
+
+# app/services/scheduler.py (Concept for EOD Order Cancellation)
+from datetime import datetime
+import pytz
+from app.models.order import Order
+from app.models.wallet import Wallet
+from app.models.transaction import Transaction
+
+async def cancel_expired_daily_orders():
+    """
+    Runs once a day at 3:05 PM Nepal Time.
+    Cancels all unfulfilled pending limit orders and refunds escrowed money to wallets.
+    """
+    nepal_tz = pytz.timezone("Asia/Kathmandu")
+    
+    while True:
+        await asyncio.sleep(60) # Check every minute
+        now_nepal = datetime.now(nepal_tz)
+        
+        # Check if it is a trading day (Sun-Thu) and exactly 3:05 PM (15:05)
+        if now_nepal.weekday() in [0, 1, 2, 3, 6] and now_nepal.hour == 15 and now_nepal.minute == 5:
+            logger.info("Market closed. Expiring unfulfilled limit orders...")
+            
+            db = next(get_db())
+            try:
+                # 1. Fetch all pending orders
+                pending_orders = db.query(Order).filter(Order.status == "PENDING").all()
+                
+                for order in pending_orders:
+                    # Mark order as EXPIRED
+                    order.status = "EXPIRED"
+                    
+                    # Calculate refund: (Remaining Qty * Limit Price)
+                    refund_amount = Decimal(str(order.remaining_quantity)) * Decimal(str(order.limit_price))
+                    
+                    # 2. Refund the user's wallet
+                    wallet = db.query(Wallet).filter(Wallet.user_id == order.user_id).first()
+                    if wallet:
+                        wallet.balance = float(Decimal(str(wallet.balance)) + refund_amount)
+                    
+                    # 3. Log Escrow Release Transaction
+                    db.add(Transaction(
+                        user_id=order.user_id,
+                        type="ESCROW_RELEASE",
+                        amount=refund_amount,
+                        description=f"Refund of Rs. {refund_amount:,.2f} for expired {order.symbol} Limit Order.",
+                        created_at=datetime.utcnow()
+                    ))
+                    
+                db.commit()
+                logger.info("Successfully cleaned up daily expired orders.")
+                
+            except Exception as e:
+                db.rollback()
+                logger.error(f"Failed to cancel daily expired orders: {e}")
+            finally:
+                db.close()
+                
+            # Sleep 1 hour to prevent triggering again in the same minute
+            await asyncio.sleep(3600)

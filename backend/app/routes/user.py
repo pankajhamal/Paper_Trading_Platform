@@ -12,6 +12,8 @@ from app.models.portfolio import Portfolio
 from app.models.transaction import Transaction
 from app.models.stock import Stock
 from app.auth.dependencies import get_current_user
+from app.controller.orders import get_user_orders  # New import
+
 
 logger = logging.getLogger(__name__)
 
@@ -140,3 +142,13 @@ async def get_user_portfolio(
         },
         "holdings": holdings
     }
+
+@router.get("/orders", status_code=status.HTTP_200_OK)
+async def get_orders(
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    """
+    HTTP GET Route for retrieving complete order history.
+    """
+    return await get_user_orders(db=db, current_user=current_user)

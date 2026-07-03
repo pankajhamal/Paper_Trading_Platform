@@ -100,7 +100,7 @@ export default function LandingPage() {
 
         <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
           <button 
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/login')}
             className="group relative px-6 py-3 rounded-lg bg-emerald-600 text-white font-semibold transition hover:bg-emerald-700 flex items-center gap-2 cursor-pointer w-full sm:w-auto justify-center shadow-lg shadow-emerald-600/10"
           >
             Start Mock Trading

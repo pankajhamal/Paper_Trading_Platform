@@ -5,7 +5,7 @@ import Dashboard from './pages/Dashboard';
 import LandingPage from './pages/LandingPage';
 import Login from './pages/Login';
 import Register from './pages/Register';
-import Orders from './components/dashboard/OrderForm'
+import Orders from './components/dashboard/Orders'
 import Portfolio from './components/dashboard/Portfolio';
 import TabContentPlaceholder from './components/TabContentPlaceholder'; // Reusable helper for your views
 
