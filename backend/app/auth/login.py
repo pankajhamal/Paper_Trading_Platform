@@ -28,5 +28,7 @@ def login(user: OAuth2PasswordRequestForm = Depends() , db: Session = Depends(ge
   return{
     "access_token": token,
     "email": db_user.email,
+    "full_name": db_user.full_name,
+    "avatar_url": db_user.avatar_url,
     "token_type": "bearer"
   }

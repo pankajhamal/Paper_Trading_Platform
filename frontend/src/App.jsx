@@ -7,7 +7,13 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Orders from './components/dashboard/Orders'
 import Portfolio from './components/dashboard/Portfolio';
-import TabContentPlaceholder from './components/TabContentPlaceholder'; // Reusable helper for your views
+import Market from './components/dashboard/Market';
+import Watchlist from './components/dashboard/Watchlist';
+import History from './components/dashboard/History';
+import Settings from './components/dashboard/Settings';
+import DashboardHome from './components/dashboard/DashboardHome';
+import Charts from './components/dashboard/Charts';
+import Alerts from './components/dashboard/Alerts';
 
 // Route Guard
 function ProtectedRoute({ children }) {
@@ -34,16 +40,16 @@ function App() {
             </ProtectedRoute>
           }>
             {/* Maps each sub-path to load inside the <Outlet /> in dashboard.jsx */}
-            <Route index element={<TabContentPlaceholder />} />
+            <Route index element={<DashboardHome />} />
             <Route path="portfolio" element={<Portfolio />} />
             <Route path='orders' element={<Orders />}/>
             {/* <Route path="orders" element={<TabContentPlaceholder />} /> */}
-            <Route path="charts" element={<TabContentPlaceholder />} />
-            <Route path="market" element={<TabContentPlaceholder />} />
-            <Route path="watchlist" element={<TabContentPlaceholder />} />
-            <Route path="history" element={<TabContentPlaceholder />} />
-            <Route path="alerts" element={<TabContentPlaceholder />} />
-            <Route path="settings" element={<TabContentPlaceholder />} />
+            <Route path="charts" element={<Charts />} />
+            <Route path="market" element={<Market />} />
+            <Route path="watchlist" element={<Watchlist />} />
+            <Route path="history" element={<History />} />
+            <Route path="alerts" element={<Alerts />} />
+            <Route path="settings" element={<Settings />} />
           </Route>
 
           {/* Fallback Catch-All Route */}

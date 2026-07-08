@@ -49,6 +49,22 @@ class NepseService:
                 logger.error(f"Failed to fetch live market from bridge: {e}")
                 return []
 
+    async def get_nepse_index(self) -> dict:
+        """
+        Fetches the NEPSE index series (intraday, or daily history fallback)
+        from the Bun bridge. Returns {} on failure.
+        """
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.get(
+                    f"{self.bridge_url}/nepse-index", timeout=15.0
+                )
+                response.raise_for_status()
+                return response.json()
+            except Exception as e:
+                logger.error(f"Failed to fetch NEPSE index from bridge: {e}")
+                return {}
+
     async def get_market_depth(self, symbol: str) -> dict:
         """
         Fetches live market depth and normalizes the data structure.

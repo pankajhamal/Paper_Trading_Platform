@@ -1,131 +1,179 @@
 // components/layout/Navbar.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Bell, ArrowUpRight, ArrowDownRight, RefreshCw } from 'lucide-react';
-import { useAppStore } from '../../store/useAppStore'; // <-- 1. Import store
+import { useAppStore } from '../../store/useAppStore';
+
+// Human-readable title per route, shown in the top bar for context.
+const PAGE_TITLES = {
+  '/': 'Dashboard',
+  '/portfolio': 'Portfolio',
+  '/orders': 'Order Book',
+  '/charts': 'Charts',
+  '/market': 'Market',
+  '/watchlist': 'Watchlist',
+  '/history': 'History',
+  '/alerts': 'Alerts',
+  '/settings': 'Settings',
+};
+
+// NEPSE trades Sunday–Thursday, 11:00–15:00 Nepal time (UTC+05:45).
+// Computed from the real clock rather than a hard-coded flag.
+const getNepseStatus = () => {
+  const now = new Date();
+  const nptMs = now.getTime() + now.getTimezoneOffset() * 60000 + (5 * 60 + 45) * 60000;
+  const npt = new Date(nptMs);
+  const day = npt.getDay(); // 0 = Sun … 6 = Sat
+  const minutes = npt.getHours() * 60 + npt.getMinutes();
+
+  const isTradingDay = day >= 0 && day <= 4; // Sun–Thu
+  const isOpen = isTradingDay && minutes >= 11 * 60 && minutes < 15 * 60;
+
+  return { isOpen, isTradingDay };
+};
+
+const formatToday = () =>
+  new Date().toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  });
 
 const Navbar = ({ backendUrl = '/api/market-summary' }) => {
-  // 2. Retrieve state and fetch action from Zustand
+  const location = useLocation();
   const balance = useAppStore((state) => state.portfolio.balance);
   const fetchWallet = useAppStore((state) => state.fetchWallet);
 
-  const [marketData, setMarketData] = useState({
-    nepse: { value: 0, change: 0, percentChange: 0 },
-    sensind: { value: 0, change: 0, percentChange: 0 },
-    turnover: 'रू 0.00',
-    volume: '0',
-    isOpen: false,
-  });
-  const [loading, setLoading] = useState(true);
+  // Real index data is only rendered when a market-summary endpoint actually
+  // returns it — we never fabricate numbers as a fallback.
+  const [indices, setIndices] = useState(null);
+  const [status, setStatus] = useState(getNepseStatus);
+  const [loading, setLoading] = useState(false);
 
-  const fetchMarketData = async () => {
+  const pageTitle = PAGE_TITLES[location.pathname] || 'Dashboard';
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    setStatus(getNepseStatus());
+    fetchWallet();
     try {
-      setLoading(true);
       const response = await fetch(backendUrl);
-      if (!response.ok) throw new Error('Network error');
+      if (!response.ok) throw new Error('unavailable');
       const data = await response.json();
-      setMarketData(data);
-    } catch (err) {
-      setMarketData({
-        nepse: { value: 2015.41, change: -12.45, percentChange: -0.61 },
-        sensind: { value: 356.12, change: 1.05, percentChange: 0.30 },
-        turnover: 'रू 2.45 B',
-        volume: '6,845,120',
-        isOpen: false,
-      });
+      setIndices(data?.nepse ? data : null);
+    } catch {
+      setIndices(null); // stay honest: no live feed, no numbers
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchMarketData();
-    // 3. Trigger wallet balance fetch on component load
-    fetchWallet(); 
-
-    const interval = setInterval(fetchMarketData, 30000);
-    return () => clearInterval(interval);
   }, [backendUrl, fetchWallet]);
 
-  const renderIndex = (label, data) => {
-    const isPositive = data.change >= 0;
-    return (
-      <div className="flex flex-col px-4 border-r border-slate-200 last:border-0">
-        <span className="text-xs text-slate-500 font-medium">{label}</span>
-        <div className="flex items-center space-x-1.5">
-          <span className="text-sm font-semibold text-slate-800">
-            {data.value.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-          </span>
-          <span className={`flex items-center text-xs font-semibold ${isPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
-            {isPositive ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
-            {Math.abs(data.change).toFixed(2)} ({data.percentChange.toFixed(2)}%)
-          </span>
-        </div>
-      </div>
-    );
-  };
+  useEffect(() => {
+    refresh();
+    const dataTimer = setInterval(refresh, 30000);
+    const clockTimer = setInterval(() => setStatus(getNepseStatus()), 60000);
+    return () => {
+      clearInterval(dataTimer);
+      clearInterval(clockTimer);
+    };
+  }, [refresh]);
 
   return (
-    <nav className="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between select-none shadow-sm z-10">
-      
-      {/* Market Live/Closed Indicator */}
-      <div className="flex items-center space-x-2 bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200">
-        <span className="relative flex h-2 w-2">
-          {marketData.isOpen && (
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-          )}
-          <span className={`relative inline-flex rounded-full h-2 w-2 ${marketData.isOpen ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
-        </span>
-        <span className="text-xs font-bold text-slate-600 tracking-wider">
-          {marketData.isOpen ? 'MARKET OPEN' : 'MARKET CLOSED'}
-        </span>
+    <header className="bg-white border-b border-slate-200 h-16 px-6 flex items-center justify-between select-none z-10">
+      {/* Left: page context */}
+      <div className="flex flex-col leading-tight">
+        <h1 className="text-base font-bold text-slate-900 tracking-tight">
+          {pageTitle}
+        </h1>
+        <span className="text-xs text-slate-400 font-medium">{formatToday()}</span>
       </div>
 
-      {/* Indices & Summary Data */}
-      <div className="hidden lg:flex items-center bg-slate-50 border border-slate-200 rounded-lg py-1 px-1">
-        {renderIndex('NEPSE', marketData.nepse)}
-        {renderIndex('SENSIND', marketData.sensind)}
+      {/* Center: live NEPSE index (only when a real feed is connected) */}
+      {indices?.nepse && (
+        <div className="hidden xl:flex items-center gap-2 rounded-lg bg-slate-50 border border-slate-200 px-3 py-1.5">
+          <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+            NEPSE
+          </span>
+          <span className="text-sm font-bold text-slate-800 tabular-nums">
+            {indices.nepse.value.toLocaleString(undefined, {
+              minimumFractionDigits: 2,
+            })}
+          </span>
+          <span
+            className={`flex items-center text-xs font-semibold tabular-nums ${
+              indices.nepse.change >= 0 ? 'text-emerald-600' : 'text-rose-600'
+            }`}
+          >
+            {indices.nepse.change >= 0 ? (
+              <ArrowUpRight size={14} />
+            ) : (
+              <ArrowDownRight size={14} />
+            )}
+            {Math.abs(indices.nepse.percentChange).toFixed(2)}%
+          </span>
+        </div>
+      )}
 
-        <div className="flex flex-col px-4 border-r border-slate-200">
-          <span className="text-xs text-slate-500 font-medium">Total Turnover</span>
-          <span className="text-sm font-semibold text-slate-800">{marketData.turnover}</span>
+      {/* Right: status + actions + balance */}
+      <div className="flex items-center gap-3">
+        {/* Market status (computed from real NEPSE hours) */}
+        <div
+          className={`hidden sm:flex items-center gap-2 rounded-full px-3 py-1.5 border ${
+            status.isOpen
+              ? 'bg-emerald-50 border-emerald-100'
+              : 'bg-slate-50 border-slate-200'
+          }`}
+        >
+          <span className="relative flex h-2 w-2">
+            {status.isOpen && (
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+            )}
+            <span
+              className={`relative inline-flex rounded-full h-2 w-2 ${
+                status.isOpen ? 'bg-emerald-500' : 'bg-slate-400'
+              }`}
+            />
+          </span>
+          <span
+            className={`text-[11px] font-bold tracking-wide ${
+              status.isOpen ? 'text-emerald-700' : 'text-slate-500'
+            }`}
+          >
+            {status.isOpen ? 'MARKET OPEN' : 'MARKET CLOSED'}
+          </span>
         </div>
 
-        <div className="flex flex-col px-4">
-          <span className="text-xs text-slate-500 font-medium">Total Volume</span>
-          <span className="text-sm font-semibold text-slate-800">{marketData.volume}</span>
-        </div>
-      </div>
-
-      {/* Actions */}
-      <div className="flex items-center space-x-3">
-        <button 
-          onClick={() => {
-            fetchMarketData();
-            fetchWallet(); // Also refresh the wallet balance on manual reload
-          }} 
+        <button
+          onClick={refresh}
           disabled={loading}
-          className="p-2 text-slate-500 hover:text-slate-800 rounded-full hover:bg-slate-100 transition duration-150"
-          title="Refresh Data"
+          title="Refresh"
+          className="p-2 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors"
         >
           <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
         </button>
 
-        <button className="relative p-2 text-slate-500 hover:text-slate-800 rounded-full hover:bg-slate-100 transition duration-150">
-          <Bell size={19} />
-          <span className="absolute top-1.5 right-1.5 block h-2 w-2 rounded-full bg-blue-600 ring-2 ring-white" />
+        <button
+          title="Notifications"
+          className="p-2 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors"
+        >
+          <Bell size={18} />
         </button>
 
-        <div className="flex items-center space-x-2 border-l border-slate-200 pl-3">
-          <div className="text-right">
-            <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">Paper Balance</p>
-            {/* 4. Display the dynamic, formatted balance */}
-            <p className="text-sm font-bold text-emerald-600">
-              रू {balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </p>
-          </div>
+        {/* Paper balance */}
+        <div className="flex flex-col items-end border-l border-slate-200 pl-3">
+          <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
+            Buying Power
+          </span>
+          <span className="text-sm font-bold text-slate-900 tabular-nums">
+            Rs.{' '}
+            {balance.toLocaleString(undefined, {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}
+          </span>
         </div>
       </div>
-    </nav>
+    </header>
   );
 };
 

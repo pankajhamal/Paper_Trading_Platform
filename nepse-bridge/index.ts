@@ -2,6 +2,8 @@
 import {
   liveMarketData,
   getMarket_depth,
+  getNepseIndexIntraday,
+  getIndexPriceVolumeHistory,
   shutdownWorkerPool,
 } from "nepse-api-unofficial";
 
@@ -30,6 +32,32 @@ const server = Bun.serve({
         return new Response(JSON.stringify(data), {
           headers: { "Content-Type": "application/json" },
         });
+      } catch (error: any) {
+        return new Response(JSON.stringify({ error: error.message }), {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+    }
+
+    // 1b. Route: GET /nepse-index (Intraday NEPSE index time-series for today).
+    //     Falls back to daily history when intraday is empty (e.g. market closed).
+    if (url.pathname === "/nepse-index") {
+      try {
+        const intraday = await getNepseIndexIntraday();
+        if (intraday && Array.isArray(intraday) && intraday.length > 0) {
+          return new Response(
+            JSON.stringify({ granularity: "intraday", data: intraday }),
+            { headers: { "Content-Type": "application/json" } },
+          );
+        }
+
+        // Fallback: recent daily history so the chart is never empty
+        const history = await getIndexPriceVolumeHistory("NEPSE Index", 90);
+        return new Response(
+          JSON.stringify({ granularity: "daily", data: history ?? [] }),
+          { headers: { "Content-Type": "application/json" } },
+        );
       } catch (error: any) {
         return new Response(JSON.stringify({ error: error.message }), {
           status: 500,

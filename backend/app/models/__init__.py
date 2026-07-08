@@ -4,6 +4,8 @@ from .transaction import Transaction
 from .portfolio import Portfolio
 from .stock import Stock
 from .order import Order
+from .watchlist import Watchlist
+from .alert import Alert
 
 __all__ = [
     "Stock",
@@ -12,4 +14,6 @@ __all__ = [
     "Transaction",
     "User",
     "Order",
+    "Watchlist",
+    "Alert",
 ]

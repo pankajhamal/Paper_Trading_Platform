@@ -98,6 +98,88 @@ export const useAppStore = create((set, get) => ({
     set({ token: null, user: null, isAuthenticated: false, authError: null });
   },
 
+  // Action: Fetch the full profile (name, email, role, avatar) from the backend
+  fetchProfile: async () => {
+    try {
+      const response = await API.get('/users/me');
+      const currentSessionUser = JSON.parse(localStorage.getItem('user')) || {};
+      const updatedUser = {
+        ...currentSessionUser,
+        email: response.data.email ?? currentSessionUser.email,
+        name: response.data.full_name || currentSessionUser.name,
+        full_name: response.data.full_name,
+        role: response.data.role,
+        avatar_url: response.data.avatar_url || null,
+      };
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+      set({ user: updatedUser });
+      return updatedUser;
+    } catch (error) {
+      console.error('Failed to fetch profile:', error.response || error);
+      return null;
+    }
+  },
+
+  // Action: Update editable profile fields (currently full name)
+  updateProfile: async (fullName) => {
+    try {
+      const response = await API.patch('/users/me', { full_name: fullName });
+      const profile = response.data.profile || {};
+      const currentSessionUser = JSON.parse(localStorage.getItem('user')) || {};
+      const updatedUser = {
+        ...currentSessionUser,
+        name: profile.full_name || fullName,
+        full_name: profile.full_name || fullName,
+      };
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+      set({ user: updatedUser });
+      return { success: true };
+    } catch (error) {
+      const message =
+        error.response?.data?.detail || error.message || 'Failed to update profile.';
+      return { success: false, error: message };
+    }
+  },
+
+  // Action: Change the account password
+  changePassword: async (currentPassword, newPassword) => {
+    try {
+      await API.put('/users/me/password', {
+        current_password: currentPassword,
+        new_password: newPassword,
+      });
+      return { success: true };
+    } catch (error) {
+      const detail = error.response?.data?.detail;
+      // Pydantic validation errors arrive as an array
+      const message = Array.isArray(detail)
+        ? detail[0]?.msg || 'Invalid password.'
+        : detail || error.message || 'Failed to change password.';
+      return { success: false, error: message };
+    }
+  },
+
+  // Action: Upload a new profile photo
+  uploadAvatar: async (file) => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await API.post('/users/me/avatar', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      const avatarUrl = response.data.avatar_url;
+      const currentSessionUser = JSON.parse(localStorage.getItem('user')) || {};
+      const updatedUser = { ...currentSessionUser, avatar_url: avatarUrl };
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+      set({ user: updatedUser });
+      return { success: true, avatar_url: avatarUrl };
+    } catch (error) {
+      const message =
+        error.response?.data?.detail || error.message || 'Failed to upload photo.';
+      return { success: false, error: message };
+    }
+  },
+
   // Action: Fetch wallet balance and user profile name securely
   fetchWallet: async () => {
     try {
@@ -186,5 +268,28 @@ export const useAppStore = create((set, get) => ({
 
   // --- Existing Actions ---
   setSelectedSymbol: (symbol) => set({ selectedSymbol: symbol }),
-  fetchTickers: async () => { /* ... existing fetch code ... */ }
+
+  // Market state for the Market screen
+  marketLoading: false,
+  marketError: null,
+  marketUpdatedAt: null,
+
+  // Action: Fetch the full list of tradable stocks (Market screen)
+  fetchTickers: async () => {
+    set({ marketLoading: true, marketError: null });
+    try {
+      const response = await API.get('/stocks');
+      set({
+        marketTickers: response.data || [],
+        marketLoading: false,
+        marketUpdatedAt: new Date(),
+      });
+    } catch (error) {
+      const message =
+        error.response?.data?.detail ||
+        error.message ||
+        'Failed to load market data.';
+      set({ marketError: message, marketLoading: false });
+    }
+  },
 }));

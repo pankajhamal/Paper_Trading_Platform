@@ -2,6 +2,7 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAppStore } from '../../store/useAppStore';
+import { assetUrl } from '../../services/api';
 import {
   LayoutDashboard,
   Briefcase,
@@ -12,99 +13,151 @@ import {
   History,
   BellRing,
   Settings,
-  LogOut
+  LogOut,
+  CandlestickChart,
 } from 'lucide-react';
+
+// Navigation grouped into labelled sections, the way a real trading terminal
+// organises its workspace rather than one long flat list.
+const NAV_SECTIONS = [
+  {
+    title: null,
+    items: [{ name: 'Dashboard', icon: LayoutDashboard, path: '/' }],
+  },
+  {
+    title: 'Trading',
+    items: [
+      { name: 'Portfolio', icon: Briefcase, path: '/portfolio' },
+      { name: 'Orders', icon: ClipboardList, path: '/orders' },
+      { name: 'Market', icon: TrendingUp, path: '/market' },
+      { name: 'Watchlist', icon: Eye, path: '/watchlist' },
+    ],
+  },
+  {
+    title: 'Insights',
+    items: [
+      { name: 'Charts', icon: LineChart, path: '/charts' },
+      { name: 'History', icon: History, path: '/history' },
+      { name: 'Alerts', icon: BellRing, path: '/alerts' },
+    ],
+  },
+  {
+    title: 'Account',
+    items: [{ name: 'Settings', icon: Settings, path: '/settings' }],
+  },
+];
 
 const Sidebar = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const user = useAppStore((state) => state.user);
-  const logoutUser = useAppStore((state) => state.logoutUser);
+  const logout = useAppStore((state) => state.logout);
 
-    const username = user?.name || user?.username || "Guest";
-
-  const menuItems = [
-    { name: 'Dashboard', icon: LayoutDashboard, path: '/' },
-    { name: 'Portfolio', icon: Briefcase, path: '/portfolio' },
-    { name: 'Orders', icon: ClipboardList, path: '/orders' },
-    { name: 'Charts', icon: LineChart, path: '/charts' },
-    { name: 'Market', icon: TrendingUp, path: '/market' },
-    { name: 'Watchlist', icon: Eye, path: '/watchlist' },
-    { name: 'History', icon: History, path: '/history' },
-    { name: 'Alerts', icon: BellRing, path: '/alerts' },
-    { name: 'Settings', icon: Settings, path: '/settings' },
-  ];
-
-  const handleTabClick = (item) => {
-    navigate(item.path);
-  };
+  const username = user?.name || user?.email?.split('@')[0] || 'Trader';
+  const email = user?.email || '';
+  const initial = username.charAt(0).toUpperCase();
+  const avatarSrc = assetUrl(user?.avatar_url);
 
   const handleLogout = () => {
-    if (logoutUser) {
-      logoutUser();
-    }
+    logout();
     navigate('/welcome');
   };
 
   return (
-    <aside className="w-64 bg-white border-r border-slate-200 flex flex-col h-screen justify-between select-none z-20">
-      <div>
-        {/* Brand Header */}
-        <div className="flex items-center space-x-3 px-6 py-5 border-b border-slate-200">
-          <div className="bg-blue-600 p-2 rounded-lg text-white shadow-sm">
-            <TrendingUp size={20} />
-          </div>
-          <span className="text-lg font-bold text-slate-800 tracking-wide">
+    <aside className="w-64 shrink-0 bg-white border-r border-slate-200 flex flex-col h-screen select-none z-20">
+      {/* Brand */}
+      <div className="flex items-center gap-3 px-5 h-16 border-b border-slate-200">
+        <div className="flex items-center justify-center h-9 w-9 rounded-lg bg-blue-600 text-white shadow-sm shadow-blue-600/20">
+          <CandlestickChart size={19} strokeWidth={2.25} />
+        </div>
+        <div className="flex flex-col leading-tight">
+          <span className="text-[15px] font-bold text-slate-900 tracking-tight">
             PaperTrade
           </span>
+          <span className="text-[10px] font-medium text-slate-400 uppercase tracking-[0.12em]">
+            NEPSE Simulator
+          </span>
         </div>
-
-        {/* Profile Card */}
-        <div className="flex items-center space-x-3 px-6 py-4 border-b border-slate-100 bg-slate-50/50">
-          <div className="w-9 h-9 rounded-full bg-blue-100 border border-blue-200 flex items-center justify-center text-blue-600 font-bold text-sm">
-            {username.charAt(0)}
-          </div>
-          <div className="flex flex-col truncate">
-            <span className="text-sm font-semibold text-slate-800 truncate">{username}</span>
-            <span className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider">Verified User</span>
-          </div>
-        </div>
-
-        {/* Nav Links */}
-        <nav className="px-3 py-4 space-y-1">
-          {menuItems.map((item) => {
-            const Icon = item.icon;
-            
-            // Evaluates active menu item matching current browser path directly
-            const isActive = location.pathname === item.path;
-
-            return (
-              <button
-                key={item.name}
-                onClick={() => handleTabClick(item)}
-                className={`w-full flex items-center space-x-3 px-4 py-2.5 rounded-lg text-sm font-semibold transition duration-150 ${
-                  isActive
-                    ? 'bg-blue-50 text-blue-600 border border-blue-100/50'
-                    : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50 border border-transparent'
-                }`}
-              >
-                <Icon size={18} className={isActive ? 'text-blue-600' : 'text-slate-400'} />
-                <span>{item.name}</span>
-              </button>
-            );
-          })}
-        </nav>
       </div>
 
-      {/* Logout Footer */}
-      <div className="p-3 border-t border-slate-200">
-        <button
-          onClick={handleLogout}
-          className="w-full flex items-center space-x-3 px-4 py-2.5 text-sm font-semibold text-rose-600 hover:bg-rose-50 rounded-lg transition duration-150 border border-transparent hover:border-rose-100"
-        >
-          <LogOut size={18} />
-          <span>Logout</span>
-        </button>
+      {/* Navigation */}
+      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
+        {NAV_SECTIONS.map((section, idx) => (
+          <div key={section.title || `section-${idx}`}>
+            {section.title && (
+              <p className="px-3 mb-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-[0.14em]">
+                {section.title}
+              </p>
+            )}
+            <div className="space-y-0.5">
+              {section.items.map((item) => {
+                const Icon = item.icon;
+                const isActive = location.pathname === item.path;
+
+                return (
+                  <button
+                    key={item.name}
+                    onClick={() => navigate(item.path)}
+                    className={`group relative w-full flex items-center gap-3 rounded-lg pl-3 pr-3 py-2 text-sm font-medium transition-colors duration-150 ${
+                      isActive
+                        ? 'bg-blue-50 text-blue-700'
+                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                    }`}
+                  >
+                    {/* Active accent bar */}
+                    <span
+                      className={`absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-r-full bg-blue-600 transition-opacity duration-150 ${
+                        isActive ? 'opacity-100' : 'opacity-0'
+                      }`}
+                    />
+                    <Icon
+                      size={18}
+                      strokeWidth={2}
+                      className={
+                        isActive
+                          ? 'text-blue-600'
+                          : 'text-slate-400 group-hover:text-slate-600'
+                      }
+                    />
+                    <span>{item.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </nav>
+
+      {/* Account footer */}
+      <div className="border-t border-slate-200 p-3">
+        <div className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-slate-50 transition-colors">
+          {avatarSrc ? (
+            <img
+              src={avatarSrc}
+              alt="Profile"
+              className="h-9 w-9 shrink-0 rounded-full object-cover border border-slate-200"
+            />
+          ) : (
+            <div className="flex items-center justify-center h-9 w-9 shrink-0 rounded-full bg-slate-800 text-white font-semibold text-sm">
+              {initial}
+            </div>
+          )}
+          <div className="flex flex-col min-w-0 flex-1">
+            <span className="text-sm font-semibold text-slate-800 truncate">
+              {username}
+            </span>
+            <span className="text-xs text-slate-400 truncate">
+              {email || 'Paper account'}
+            </span>
+          </div>
+          <button
+            onClick={handleLogout}
+            title="Log out"
+            className="shrink-0 p-1.5 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+          >
+            <LogOut size={17} />
+          </button>
+        </div>
       </div>
     </aside>
   );

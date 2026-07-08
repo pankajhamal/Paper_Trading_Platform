@@ -11,6 +11,35 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/stocks", tags=["Stocks"])
 
+
+@router.get("")
+def list_stocks(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Returns the full list of tradable stocks with their latest price data,
+    ordered by trading volume (most active first). Powers the Market screen.
+    """
+    stocks = db.query(Stock).order_by(Stock.volume.desc()).all()
+
+    return [
+        {
+            "stock_id": stock.stock_id,
+            "symbol": stock.symbol,
+            "company_name": stock.company_name,
+            "current_price": stock.last_traded_price,
+            "change": stock.change,
+            "percent_change": stock.percent_change,
+            "volume": stock.volume,
+            "open_price": stock.open_price,
+            "high_price": stock.high_price,
+            "low_price": stock.low_price,
+        }
+        for stock in stocks
+    ]
+
+
 @router.get("/{symbol}")
 def get_stock_by_symbol(
     symbol: str, 

@@ -1,8 +1,18 @@
 import axios from 'axios';
 
+// Backend origin, reused for building URLs to static assets (e.g. avatars).
+export const API_ORIGIN = 'http://localhost:8000';
+
+// Resolve a backend-relative path (like "/uploads/avatars/x.png") to a full URL.
+export const assetUrl = (path) => {
+  if (!path) return null;
+  if (path.startsWith('http')) return path;
+  return `${API_ORIGIN}${path.startsWith('/') ? '' : '/'}${path}`;
+};
+
 // Create an Axios instance pointing to your backend address
 const API = axios.create({
-  baseURL: 'http://localhost:8000/', 
+  baseURL: `${API_ORIGIN}/`,
   headers: {
     'Content-Type': 'application/json',
   },

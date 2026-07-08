@@ -10,6 +10,7 @@ class User(Base):
     email = Column(String, unique=True)
     password = Column(String)
     role = Column(VARCHAR)
+    avatar_url = Column(String, nullable=True)
 
     wallet=relationship("Wallet", back_populates="user", uselist=False)
     transactions=relationship("Transaction", back_populates="user")
