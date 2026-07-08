@@ -17,6 +17,16 @@ async def get_user_orders(db: Session, current_user: User) -> list:
             Order.user_id == current_user.user_id
         ).order_by(Order.created_at.desc()).all()
         
+        def _display_status(raw: str) -> str:
+            status_key = (raw or "").upper()
+            if status_key in ("COMPLETED", "FILLED"):
+                return "Filled"
+            if status_key == "EXPIRED":
+                return "Expired"
+            if status_key in ("CANCELLED", "CANCELED"):
+                return "Cancelled"
+            return "Pending"
+
         return [
             {
                 "id": order.order_id,
@@ -25,7 +35,7 @@ async def get_user_orders(db: Session, current_user: User) -> list:
                 "orderType": order.order_type,   # "MARKET" or "LIMIT"
                 "qty": order.quantity,
                 "limit_price": float(order.limit_price) if order.limit_price else None,
-                "status": "Filled" if order.status in ["COMPLETED", "Filled"] else ("Expired" if order.status in ["EXPIRED", "Expired"] else "Pending"),                
+                "status": _display_status(order.status),
                 "date": order.created_at.strftime("%Y-%m-%d")
             }
             for order in orders

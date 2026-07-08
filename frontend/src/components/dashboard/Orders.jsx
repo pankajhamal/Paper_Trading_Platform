@@ -1,6 +1,6 @@
 // pages/Orders.jsx
 import React, { useState, useEffect, useRef } from "react";
-import { Plus, X, Clock, CheckCircle, XCircle } from "lucide-react";
+import { Plus, X, Clock, CheckCircle, XCircle, Ban } from "lucide-react";
 import { useOrderStore } from "../../store/useOrderStore";
 
 const Orders = () => {
@@ -9,10 +9,15 @@ const Orders = () => {
     fetchOrders,
     placeBuyOrder,
     placeSellOrder,
+    cancelOrder,
     isLoading: isTrading,
   } = useOrderStore();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeStock, setActiveStock] = useState(null);
+
+  // Cancellation State
+  const [cancelTarget, setCancelTarget] = useState(null); // the pending order awaiting confirmation
+  const [isCancelling, setIsCancelling] = useState(false);
 
   // Notification State
   // Notification States
@@ -160,6 +165,25 @@ const Orders = () => {
     }
   };
 
+  // Confirm and cancel a resting pending order
+  const handleConfirmCancel = async () => {
+    if (!cancelTarget) return;
+
+    setIsCancelling(true);
+    const result = await cancelOrder(cancelTarget.id);
+    setIsCancelling(false);
+    setCancelTarget(null);
+
+    if (result.success) {
+      triggerNotification(
+        `Order #${cancelTarget.id} (${cancelTarget.symbol}) cancelled. Escrow refunded.`,
+        "success",
+      );
+    } else {
+      triggerNotification(`Cancel failed: ${result.error}`, "error");
+    }
+  };
+
   return (
     <div className="space-y-6 relative pb-16">
       {/* Header Area */}
@@ -209,6 +233,7 @@ const Orders = () => {
                   <th className="px-6 py-4">Execution Price</th>
                   <th className="px-6 py-4">Status</th>
                   <th className="px-6 py-4">Date</th>
+                  <th className="px-6 py-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-sm">
@@ -254,6 +279,13 @@ const Orders = () => {
                           <XCircle size={12} />
                           <span>Expired</span>
                         </span>
+                      ) : order.status === "CANCELLED" ||
+                        order.status === "Cancelled" ||
+                        order.status === "cancelled" ? (
+                        <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-600 border border-rose-100">
+                          <Ban size={12} />
+                          <span>Cancelled</span>
+                        </span>
                       ) : (
                         <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-100 animate-pulse">
                           <Clock size={12} />
@@ -262,6 +294,19 @@ const Orders = () => {
                       )}
                     </td>
                     <td className="px-6 py-4 text-slate-500">{order.date}</td>
+                    <td className="px-6 py-4 text-right">
+                      {order.status === "Pending" ? (
+                        <button
+                          onClick={() => setCancelTarget(order)}
+                          className="inline-flex items-center space-x-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-100 transition duration-150"
+                        >
+                          <Ban size={13} />
+                          <span>Cancel</span>
+                        </button>
+                      ) : (
+                        <span className="text-slate-300">—</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -447,6 +492,76 @@ const Orders = () => {
                   : `Place ${form.type === "BUY" ? "Buy" : "Sell"} ${form.order_type}`}
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel Confirmation Modal */}
+      {cancelTarget && (
+        <div className="fixed inset-0 w-screen h-screen bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-[9999]">
+          <div className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <h2 className="text-lg font-bold text-slate-800">Cancel Order</h2>
+              <button
+                onClick={() => setCancelTarget(null)}
+                disabled={isCancelling}
+                className="text-slate-400 hover:text-slate-600 p-1.5 hover:bg-slate-50 rounded-lg transition disabled:opacity-50"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-slate-600">
+                Are you sure you want to cancel this pending{" "}
+                <span className="font-bold">{cancelTarget.type}</span> order? The
+                escrowed{" "}
+                {cancelTarget.type === "BUY" ? "cash" : "shares"} will be
+                refunded to your account.
+              </p>
+
+              <div className="bg-slate-50 border border-slate-200/60 rounded-lg p-3 text-xs space-y-1.5">
+                <div className="flex justify-between font-semibold text-slate-700">
+                  <span>Symbol:</span>
+                  <span className="font-bold text-slate-800">
+                    {cancelTarget.symbol}
+                  </span>
+                </div>
+                <div className="flex justify-between text-slate-600">
+                  <span>Quantity:</span>
+                  <span className="font-bold">{cancelTarget.qty}</span>
+                </div>
+                <div className="flex justify-between text-slate-600">
+                  <span>Limit Price:</span>
+                  <span className="font-bold">
+                    {cancelTarget.limit_price
+                      ? `Rs. ${cancelTarget.limit_price}`
+                      : "Market"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setCancelTarget(null)}
+                  disabled={isCancelling}
+                  className="py-2.5 rounded-lg text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition duration-150 disabled:opacity-50"
+                >
+                  Keep Order
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmCancel}
+                  disabled={isCancelling}
+                  className="py-2.5 rounded-lg text-sm font-bold text-white bg-rose-600 hover:bg-rose-700 shadow-sm transition duration-150 disabled:opacity-50"
+                >
+                  {isCancelling ? "Cancelling..." : "Cancel Order"}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

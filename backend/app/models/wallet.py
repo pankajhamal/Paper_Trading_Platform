@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, Float, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, DateTime, ForeignKey, Numeric
 from app.database.base import Base
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
@@ -9,7 +9,7 @@ class Wallet(Base):
 
     wallet_id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.user_id"), unique=True, nullable=False)
-    balance = Column(Float, default=100000)
+    balance = Column(Numeric(12, 2), default=100000)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.utcnow())
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.utcnow(), onupdate=datetime.utcnow())
 

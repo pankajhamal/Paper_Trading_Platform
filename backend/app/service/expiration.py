@@ -4,9 +4,11 @@ import logging
 from datetime import datetime
 from decimal import Decimal
 
+from app.database.config import settings
 from app.database.connection import get_db
 from app.models.order import Order
 from app.models.wallet import Wallet
+from app.models.portfolio import Portfolio
 from app.models.transaction import Transaction
 from sqlalchemy import func
 
@@ -14,16 +16,17 @@ logger = logging.getLogger(__name__)
 
 async def cancel_expired_daily_orders():
     """
-    Background task that runs every 60 seconds.
-    It scans for pending limit orders older than 5 hours,
-    cancels them, and refunds the escrowed funds to the users' wallets.
+    Background task that expires stale pending limit orders and reverses their
+    escrow back to the user:
+      - BUY  -> refund the escrowed cash (remaining_qty * limit_price) to wallet
+      - SELL -> restore the escrowed shares (remaining_qty) to the portfolio
     """
     # Wait 10 seconds on startup once to let the main server fully boot
     await asyncio.sleep(10)
-    
-    # Expiration limit: 5 hours (5 hours * 3600 seconds = 18,000 seconds)
-    EXPIRATION_LIMIT_SECONDS = 60
-    
+
+    # Order lifetime is configurable (see Settings.ORDER_EXPIRY_MINUTES)
+    EXPIRATION_LIMIT_SECONDS = settings.ORDER_EXPIRY_MINUTES * 60
+
     while True:
         db_generator = get_db()
         db = next(db_generator)
@@ -41,44 +44,73 @@ async def cancel_expired_daily_orders():
                     # Since order.created_at is stored in UTC, we subtract from datetime.utcnow()
                     order_age_seconds = (now_utc - order.created_at).total_seconds()
                     
-                    # If the order has been pending for 5 hours or more
+                    # If the order has exceeded its configured lifetime
                     if order_age_seconds >= EXPIRATION_LIMIT_SECONDS:
                         # Update order status to EXPIRED
                         order.status = "EXPIRED"
                         expired_count += 1
-                        
-                        # Calculate the exact refund: (Remaining Qty * Limit Price)
-                        remaining_qty = Decimal(str(order.remaining_quantity))
-                        limit_price = Decimal(str(order.limit_price))
-                        refund_amount = remaining_qty * limit_price
-                        
-                        # 2. Fetch User's Wallet and refund the balance
-                        wallet = db.query(Wallet).filter(Wallet.user_id == order.user_id).first()
-                        if wallet:
-                            wallet_balance_dec = Decimal(str(wallet.balance))
-                            wallet.balance = float(wallet_balance_dec + refund_amount)
-                        
-                        # 3. Log an ESCROW_RELEASE transaction to the permanent ledger
-                        db.add(Transaction(
-                            user_id=order.user_id,
-                            type="ESCROW_RELEASE",
-                            amount=refund_amount,
-                            description=(
-                                f"Refund of Rs. {refund_amount:,.2f} for expired {order.symbol} Limit Order "
-                                f"(Exceeded 5-hour pending limit)."
-                            ),
-                            created_at=datetime.utcnow()
-                        ))
+
+                        remaining_qty = order.remaining_quantity
+                        transaction_type = (order.transaction_type or "").upper()
+
+                        if transaction_type == "SELL":
+                            # SELL escrow is SHARES: return them to the portfolio.
+                            portfolio_entry = db.query(Portfolio).filter(
+                                Portfolio.user_id == order.user_id,
+                                Portfolio.stock_id == order.stock_id
+                            ).first()
+
+                            if portfolio_entry:
+                                portfolio_entry.quantity += remaining_qty
+                            else:
+                                portfolio_entry = Portfolio(
+                                    user_id=order.user_id,
+                                    stock_id=order.stock_id,
+                                    quantity=remaining_qty,
+                                    average_price=Decimal(str(order.limit_price))
+                                )
+                                db.add(portfolio_entry)
+
+                            db.add(Transaction(
+                                user_id=order.user_id,
+                                type="ASSET_ESCROW_RELEASE",
+                                amount=Decimal("0.0"),
+                                description=(
+                                    f"Returned {remaining_qty} unsold shares of {order.symbol} "
+                                    f"to portfolio (expired Limit Sell)."
+                                ),
+                                created_at=datetime.utcnow()
+                            ))
+                        else:
+                            # BUY escrow is CASH: refund (remaining_qty * limit_price).
+                            refund_amount = Decimal(str(remaining_qty)) * Decimal(str(order.limit_price))
+
+                            wallet = db.query(Wallet).filter(Wallet.user_id == order.user_id).first()
+                            if wallet:
+                                wallet.balance = float(Decimal(str(wallet.balance)) + refund_amount)
+
+                            db.add(Transaction(
+                                user_id=order.user_id,
+                                type="ESCROW_RELEASE",
+                                amount=refund_amount,
+                                description=(
+                                    f"Refund of Rs. {refund_amount:,.2f} for expired {order.symbol} "
+                                    f"Limit Buy (unfilled {remaining_qty} shares)."
+                                ),
+                                created_at=datetime.utcnow()
+                            ))
                 
                 if expired_count > 0:
                     db.commit()
-                    logger.info(f"Successfully expired {expired_count} pending orders (older than 5 hours).")
-                    
+                    logger.info(
+                        f"Expired {expired_count} pending orders "
+                        f"(older than {settings.ORDER_EXPIRY_MINUTES} min) and reversed their escrow."
+                    )
+
         except Exception as e:
             db.rollback()
             logger.error(f"Failed to process order expirations: {e}")
         finally:
             db.close()
-            
-        # Scan the database again in 60 seconds
-        await asyncio.sleep(30)
+
+        await asyncio.sleep(settings.EXPIRY_SCAN_INTERVAL_SECONDS)

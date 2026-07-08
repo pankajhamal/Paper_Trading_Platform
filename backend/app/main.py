@@ -3,6 +3,7 @@ from app.database.base import Base
 from app.database.connection import engine
 from app.service.schedular import update_all_stock_prices
 from app.service.expiration import cancel_expired_daily_orders
+from app.service.matcher import match_pending_orders
 from app.models import User, Wallet, Transaction, Stock, Portfolio, Order
 import asyncio
 from fastapi.middleware.cors import CORSMiddleware
@@ -42,6 +43,9 @@ async def startup_event():
     asyncio.create_task(update_all_stock_prices())
 
     asyncio.create_task(cancel_expired_daily_orders())
+
+    # Fills resting limit orders when the market reaches their price
+    asyncio.create_task(match_pending_orders())
 
     print("[SERVER] All background services started successfully.")
 
