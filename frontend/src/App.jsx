@@ -14,6 +14,7 @@ import Settings from './components/dashboard/Settings';
 import DashboardHome from './components/dashboard/DashboardHome';
 import Charts from './components/dashboard/Charts';
 import Alerts from './components/dashboard/Alerts';
+import Wallet from './components/dashboard/Wallet';
 
 // Route Guard
 function ProtectedRoute({ children }) {
@@ -48,6 +49,7 @@ function App() {
             <Route path="market" element={<Market />} />
             <Route path="watchlist" element={<Watchlist />} />
             <Route path="history" element={<History />} />
+            <Route path="wallet" element={<Wallet />} />
             <Route path="alerts" element={<Alerts />} />
             <Route path="settings" element={<Settings />} />
           </Route>

@@ -16,6 +16,7 @@ from app.models.stock import Stock
 from app.auth.dependencies import get_current_user
 from app.auth.utils import hash_password, verify_password
 from app.schemas.UserProfile import ProfileUpdate, PasswordChange
+from app.schemas.wallet import WalletDeposit
 from app.controller.orders import get_user_orders  # New import
 
 
@@ -211,6 +212,63 @@ async def get_user_wallet(
         "balance": wallet.balance,
         "currency": "NPR"
     }
+
+
+# 2b. Load paper funds into the wallet (POST /users/me/wallet/deposit)
+@router.post("/me/wallet/deposit")
+async def deposit_to_wallet(
+    payload: WalletDeposit,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Credits the logged-in user's wallet with paper funds and records a DEPOSIT
+    entry in the transaction ledger.
+    """
+    wallet = db.query(Wallet).filter(
+        Wallet.user_id == current_user.user_id
+    ).with_for_update().first()
+    if not wallet:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Wallet not found."
+        )
+
+    amount = Decimal(str(payload.amount)).quantize(Decimal("0.01"))
+    new_balance = Decimal(str(wallet.balance)) + amount
+    wallet.balance = float(new_balance)
+
+    db.add(Transaction(
+        user_id=current_user.user_id,
+        type="DEPOSIT",
+        amount=amount,
+        description=f"Loaded Rs. {amount:,.2f} into wallet",
+        created_at=datetime.utcnow()
+    ))
+
+    db.commit()
+    db.refresh(wallet)
+
+    return {
+        "balance": float(wallet.balance),
+        "currency": "NPR",
+        "amount": float(amount)
+    }
+
+
+# 2c. Withdraw funds (POST /users/me/wallet/withdraw) — reserved for future release.
+@router.post("/me/wallet/withdraw")
+async def withdraw_from_wallet(
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Placeholder for cash withdrawals. Not available in the paper-trading
+    simulator yet; wired so the frontend can enable it later without changes.
+    """
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Withdrawals are coming soon."
+    )
 
 
 # 3. Fetch User's Transaction History (GET /users/me/transactions)

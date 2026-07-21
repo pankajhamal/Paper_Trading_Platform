@@ -15,6 +15,7 @@ import {
   Settings,
   LogOut,
   CandlestickChart,
+  Wallet,
 } from 'lucide-react';
 
 // Navigation grouped into labelled sections, the way a real trading terminal
@@ -43,7 +44,10 @@ const NAV_SECTIONS = [
   },
   {
     title: 'Account',
-    items: [{ name: 'Settings', icon: Settings, path: '/settings' }],
+    items: [
+      { name: 'Wallet', icon: Wallet, path: '/wallet' },
+      { name: 'Settings', icon: Settings, path: '/settings' },
+    ],
   },
 ];
 

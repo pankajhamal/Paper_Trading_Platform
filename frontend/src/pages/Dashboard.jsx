@@ -1,10 +1,30 @@
 // dashboard.jsx
-import React from 'react';
-import { Outlet } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { Outlet, useNavigate } from 'react-router-dom';
 import Navbar from '../components/layout/Navbar';
 import Sidebar from '../components/layout/Sidebar';
+import { useAppStore } from '../store/useAppStore';
+import { isTokenExpired } from '../services/api';
 
 function Dashboard() {
+  const navigate = useNavigate();
+  const logout = useAppStore((state) => state.logout);
+
+  // Watch the session even while idle: if the token expires with no API calls
+  // in flight, log the user out and send them to login without waiting for the
+  // next request to 401.
+  useEffect(() => {
+    const check = () => {
+      if (isTokenExpired(localStorage.getItem('token'))) {
+        logout();
+        navigate('/login', { replace: true });
+      }
+    };
+    check();
+    const timer = setInterval(check, 10000);
+    return () => clearInterval(timer);
+  }, [logout, navigate]);
+
   return (
     <div className="flex h-screen w-screen bg-slate-50 overflow-hidden text-slate-800">
       {/* 1. Sidebar on the left (spanning full height) */}

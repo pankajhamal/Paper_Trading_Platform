@@ -4,6 +4,9 @@ import {
   getMarket_depth,
   getNepseIndexIntraday,
   getIndexPriceVolumeHistory,
+  getNepseIndex,
+  getSummary,
+  get_market_status,
   shutdownWorkerPool,
 } from "nepse-api-unofficial";
 
@@ -56,6 +59,28 @@ const server = Bun.serve({
         const history = await getIndexPriceVolumeHistory("NEPSE Index", 90);
         return new Response(
           JSON.stringify({ granularity: "daily", data: history ?? [] }),
+          { headers: { "Content-Type": "application/json" } },
+        );
+      } catch (error: any) {
+        return new Response(JSON.stringify({ error: error.message }), {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+    }
+
+    // 1c. Route: GET /market-summary (NEPSE headline: index point/change +
+    //     whole-market turnover/volume + live open/closed status). Used by the
+    //     top navbar ticker. Fetches the three sources concurrently.
+    if (url.pathname === "/market-summary") {
+      try {
+        const [index, summary, marketStatus] = await Promise.all([
+          getNepseIndex(),
+          getSummary(),
+          get_market_status(),
+        ]);
+        return new Response(
+          JSON.stringify({ index, summary, marketStatus }),
           { headers: { "Content-Type": "application/json" } },
         );
       } catch (error: any) {

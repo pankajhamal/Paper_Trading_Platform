@@ -1,6 +1,16 @@
 // useAppStore.js
 import { create } from 'zustand';
-import API from '../services/api';
+import API, { isTokenExpired } from '../services/api';
+
+// Resolve the session from localStorage at startup: an expired (or missing)
+// token is treated as no session at all, so the app never renders the
+// authenticated shell with a dead token.
+const storedToken = localStorage.getItem('token');
+const validToken = storedToken && !isTokenExpired(storedToken) ? storedToken : null;
+if (storedToken && !validToken) {
+  localStorage.removeItem('token');
+  localStorage.removeItem('user');
+}
 
 export const useAppStore = create((set, get) => ({
   // --- Global Asset & View State ---
@@ -16,10 +26,11 @@ export const useAppStore = create((set, get) => ({
   },
 
   // --- Authentication State ---
-  // Load both user and token from localStorage to survive page refreshes
-  user: JSON.parse(localStorage.getItem('user')) || null,
-  token: localStorage.getItem('token') || null,
-  isAuthenticated: !!localStorage.getItem('token'),
+  // Restore the session from localStorage (survives refresh), but only if the
+  // stored token is still valid — an expired token starts the user logged out.
+  user: validToken ? JSON.parse(localStorage.getItem('user')) || null : null,
+  token: validToken,
+  isAuthenticated: !!validToken,
   authError: null,
 
   // --- Authentication Actions ---
@@ -231,6 +242,32 @@ export const useAppStore = create((set, get) => ({
       }));
     } catch (error) {
       console.error("Failed to fetch wallet info:", error.response || error);
+    }
+  },
+
+  // Action: Load paper funds into the wallet, then refresh the balance
+  depositFunds: async (amount) => {
+    try {
+      const value = Number(amount);
+      if (!value || value <= 0) {
+        return { success: false, error: 'Enter an amount greater than zero.' };
+      }
+      const response = await API.post('/users/me/wallet/deposit', { amount: value });
+      // Reflect the new balance immediately from the response, then re-sync.
+      set((state) => ({
+        portfolio: {
+          ...state.portfolio,
+          balance: parseFloat(response.data?.balance ?? state.portfolio.balance),
+        },
+      }));
+      await get().fetchWallet();
+      return { success: true, balance: response.data?.balance };
+    } catch (error) {
+      const detail = error.response?.data?.detail;
+      const message = Array.isArray(detail)
+        ? detail[0]?.msg || 'Deposit failed.'
+        : detail || error.message || 'Deposit failed.';
+      return { success: false, error: message };
     }
   },
 
