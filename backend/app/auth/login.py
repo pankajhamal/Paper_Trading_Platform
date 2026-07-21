@@ -20,7 +20,11 @@ def login(user: OAuth2PasswordRequestForm = Depends() , db: Session = Depends(ge
   
   if not verify_password(user.password, db_user.password):
     raise HTTPException(status_code=400, detail="Invalid Credentials")
-  
+
+  # Block disabled (soft-deleted) accounts from logging in.
+  if getattr(db_user, "is_active", True) is False:
+    raise HTTPException(status_code=403, detail="This account has been disabled.")
+
   token = create_access_token(
     data={"user_id": db_user.user_id, "email": db_user.email}
   )
@@ -30,5 +34,6 @@ def login(user: OAuth2PasswordRequestForm = Depends() , db: Session = Depends(ge
     "email": db_user.email,
     "full_name": db_user.full_name,
     "avatar_url": db_user.avatar_url,
+    "role": db_user.role,
     "token_type": "bearer"
   }

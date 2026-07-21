@@ -5,7 +5,8 @@ from app.service.schedular import update_all_stock_prices
 from app.service.expiration import cancel_expired_daily_orders
 from app.service.matcher import match_pending_orders
 from app.service.alert_checker import check_price_alerts
-from app.models import User, Wallet, Transaction, Stock, Portfolio, Order
+from app.service.seed import seed_default_admin
+from app.models import User, Wallet, Transaction, Stock, Portfolio, Order, WithdrawalRequest
 import asyncio
 import os
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,6 +22,7 @@ from app.routes.stock import router as stock_router
 from app.routes.watchlist import router as watchlist_router
 from app.routes.alerts import router as alerts_router
 from app.routes.market import router as market_router
+from app.routes.admin import router as admin_router
 
 Base.metadata.create_all(bind=engine) 
 
@@ -49,6 +51,9 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 @app.on_event("startup")
 async def startup_event():
+    # Ensure the default admin account exists (from .env), before anything else.
+    seed_default_admin()
+
     #Start the periodic updater as a background task
     asyncio.create_task(update_all_stock_prices())
 
@@ -76,3 +81,4 @@ app.include_router(stock_router)
 app.include_router(watchlist_router)
 app.include_router(alerts_router)
 app.include_router(market_router)
+app.include_router(admin_router)

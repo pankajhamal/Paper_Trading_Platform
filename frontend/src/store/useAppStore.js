@@ -52,11 +52,11 @@ export const useAppStore = create((set, get) => ({
       });
 
       // 3. Parse access_token, email, and any name fields returned by the backend
-      const { access_token, email: userEmail, full_name, name } = response.data;
+      const { access_token, email: userEmail, full_name, name, role, avatar_url } = response.data;
 
       // Fallback name parsing if backend doesn't return full_name in the token response
       const displayName = full_name || name || userEmail.split('@')[0];
-      const userData = { email: userEmail, name: displayName };
+      const userData = { email: userEmail, name: displayName, role: role || 'user', avatar_url: avatar_url || null };
 
       // 4. Save token and user details in browser local storage
       localStorage.setItem('token', access_token);

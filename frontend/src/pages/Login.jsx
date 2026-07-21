@@ -16,9 +16,11 @@ export default function Login() {
     
     // Call the backend login action
     const success = await login(email, password);
-    
+
     if (success) {
-      navigate('/'); // Redirect to Workspace on successful authentication
+      // Admins land on the admin panel; everyone else on the trading workspace.
+      const role = useAppStore.getState().user?.role;
+      navigate(role === 'admin' ? '/admin' : '/');
     }
   };
 

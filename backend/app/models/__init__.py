@@ -6,6 +6,7 @@ from .stock import Stock
 from .order import Order
 from .watchlist import Watchlist
 from .alert import Alert
+from .withdrawal import WithdrawalRequest
 
 __all__ = [
     "Stock",
@@ -16,4 +17,5 @@ __all__ = [
     "Order",
     "Watchlist",
     "Alert",
+    "WithdrawalRequest",
 ]

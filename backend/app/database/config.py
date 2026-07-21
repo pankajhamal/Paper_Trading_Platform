@@ -6,6 +6,11 @@ class Settings(BaseSettings):
     ALGORITHM: str
     ACCESS_TOKEN_EXPIRES_MINUTES: int
 
+    # --- Default admin (seeded on startup if missing) ---
+    DEFAULT_ADMIN_EMAIL: str = "admin@gmail.com"
+    DEFAULT_ADMIN_PASSWORD: str = "admin@123"
+    DEFAULT_ADMIN_NAME: str = "Administrator"
+
     # --- Order lifecycle tuning (safe defaults; override in .env if desired) ---
     # How long a pending limit order stays alive before it expires and its
     # escrow (cash for buys / shares for sells) is returned to the user.

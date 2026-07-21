@@ -28,8 +28,28 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     except JWTError:
         raise credentials_exception
     user = db.query(User).filter(User.email == user_identifier).first()
-    
+
     if user is None:
         raise credentials_exception
-        
+
+    # A disabled (soft-deleted) account cannot use the API.
+    if getattr(user, "is_active", True) is False:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This account has been disabled.",
+        )
+
     return user
+
+
+def get_current_admin(current_user: User = Depends(get_current_user)) -> User:
+    """
+    Dependency that allows only admin accounts through. Layers on top of
+    get_current_user, so the token is validated and the account active first.
+    """
+    if (current_user.role or "").lower() != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required.",
+        )
+    return current_user

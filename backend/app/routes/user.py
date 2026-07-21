@@ -16,7 +16,8 @@ from app.models.stock import Stock
 from app.auth.dependencies import get_current_user
 from app.auth.utils import hash_password, verify_password
 from app.schemas.UserProfile import ProfileUpdate, PasswordChange
-from app.schemas.wallet import WalletDeposit
+from app.schemas.wallet import WalletDeposit, WalletWithdraw
+from app.models.withdrawal import WithdrawalRequest
 from app.controller.orders import get_user_orders  # New import
 
 
@@ -256,19 +257,89 @@ async def deposit_to_wallet(
     }
 
 
-# 2c. Withdraw funds (POST /users/me/wallet/withdraw) — reserved for future release.
+# 2c. Request a withdrawal (POST /users/me/wallet/withdraw).
+#     Funds are HELD immediately; an admin later approves or rejects the request.
 @router.post("/me/wallet/withdraw")
-async def withdraw_from_wallet(
+async def request_withdrawal(
+    payload: WalletWithdraw,
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
-    Placeholder for cash withdrawals. Not available in the paper-trading
-    simulator yet; wired so the frontend can enable it later without changes.
+    Creates a PENDING withdrawal request and holds the funds (deducts them from
+    the wallet). If an admin rejects the request the amount is refunded.
     """
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Withdrawals are coming soon."
+    wallet = db.query(Wallet).filter(
+        Wallet.user_id == current_user.user_id
+    ).with_for_update().first()
+    if not wallet:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Wallet not found."
+        )
+
+    amount = Decimal(str(payload.amount)).quantize(Decimal("0.01"))
+    balance = Decimal(str(wallet.balance))
+    if amount > balance:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Insufficient balance. Available: Rs. {balance:,.2f}"
+        )
+
+    # Hold the funds now so they can't be spent while the request is pending.
+    wallet.balance = float(balance - amount)
+
+    withdrawal = WithdrawalRequest(
+        user_id=current_user.user_id,
+        amount=amount,
+        status="PENDING",
+        created_at=datetime.utcnow()
     )
+    db.add(withdrawal)
+
+    db.add(Transaction(
+        user_id=current_user.user_id,
+        type="WITHDRAW",
+        amount=amount,
+        description=f"Withdrawal request for Rs. {amount:,.2f} — pending approval",
+        created_at=datetime.utcnow()
+    ))
+
+    db.commit()
+    db.refresh(withdrawal)
+    db.refresh(wallet)
+
+    return {
+        "request_id": withdrawal.id,
+        "amount": float(amount),
+        "status": withdrawal.status,
+        "balance": float(wallet.balance),
+        "currency": "NPR"
+    }
+
+
+# 2d. List the current user's own withdrawal requests (GET /users/me/withdrawals).
+@router.get("/me/withdrawals")
+async def get_my_withdrawals(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Returns the logged-in user's withdrawal requests, most recent first."""
+    requests = db.query(WithdrawalRequest).filter(
+        WithdrawalRequest.user_id == current_user.user_id
+    ).order_by(WithdrawalRequest.created_at.desc()).all()
+
+    return [
+        {
+            "request_id": r.id,
+            "amount": float(r.amount),
+            "status": r.status,
+            "note": r.note,
+            "created_at": r.created_at,
+            "reviewed_at": r.reviewed_at,
+        }
+        for r in requests
+    ]
 
 
 # 3. Fetch User's Transaction History (GET /users/me/transactions)

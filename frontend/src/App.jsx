@@ -15,11 +15,28 @@ import DashboardHome from './components/dashboard/DashboardHome';
 import Charts from './components/dashboard/Charts';
 import Alerts from './components/dashboard/Alerts';
 import Wallet from './components/dashboard/Wallet';
+import AdminDashboard from './pages/AdminDashboard';
+import AdminOverview from './components/admin/AdminOverview';
+import AdminUsers from './components/admin/AdminUsers';
+import AdminWithdrawals from './components/admin/AdminWithdrawals';
 
-// Route Guard
+// Route Guard for the trading workspace.
+// Admins don't use the trading workspace — they're sent to the admin panel.
 function ProtectedRoute({ children }) {
   const isAuthenticated = useAppStore((state) => state.isAuthenticated);
-  return isAuthenticated ? children : <Navigate to="/login" replace />;
+  const role = useAppStore((state) => state.user?.role);
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (role === 'admin') return <Navigate to="/admin" replace />;
+  return children;
+}
+
+// Admin-only guard: must be authenticated AND have the admin role.
+// Non-admins are bounced to the trading workspace; guests to login.
+function AdminRoute({ children }) {
+  const isAuthenticated = useAppStore((state) => state.isAuthenticated);
+  const role = useAppStore((state) => state.user?.role);
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  return role === 'admin' ? children : <Navigate to="/" replace />;
 }
 
 function App() {
@@ -52,6 +69,17 @@ function App() {
             <Route path="wallet" element={<Wallet />} />
             <Route path="alerts" element={<Alerts />} />
             <Route path="settings" element={<Settings />} />
+          </Route>
+
+          {/* Admin Panel (role-gated) */}
+          <Route path="/admin" element={
+            <AdminRoute>
+              <AdminDashboard />
+            </AdminRoute>
+          }>
+            <Route index element={<AdminOverview />} />
+            <Route path="users" element={<AdminUsers />} />
+            <Route path="withdrawals" element={<AdminWithdrawals />} />
           </Route>
 
           {/* Fallback Catch-All Route */}
