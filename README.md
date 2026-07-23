@@ -140,30 +140,6 @@ A default admin account is seeded on first startup from your `.env`
 
 ---
 
-## Environment Variables
-
-Create `backend/.env` with the following keys (see `app/database/config.py`):
-
-```dotenv
-# Database
-DATABASE_URL=postgresql+psycopg://<user>:<password>@localhost:5432/papertrading
-
-# Auth — use a long, random secret in any real deployment
-SECRET_KEY=<generate: python -c "import secrets; print(secrets.token_urlsafe(64))">
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRES_MINUTES=60
-
-# Default admin (seeded on startup). Password has NO code default — it must be set here.
-DEFAULT_ADMIN_EMAIL=admin@example.com
-DEFAULT_ADMIN_PASSWORD=<a strong password>
-DEFAULT_ADMIN_NAME=Administrator
-
-# Order lifecycle tuning (optional — defaults shown)
-ORDER_EXPIRY_MINUTES=360          # day-order lifetime; lower to demo expiry
-MATCHER_INTERVAL_SECONDS=10       # how often the limit-order matcher runs
-EXPIRY_SCAN_INTERVAL_SECONDS=30   # how often expired orders are swept
-```
-
 > **Security note:** `SECRET_KEY` signs JWTs and `DEFAULT_ADMIN_PASSWORD`
 > bootstraps the admin — never commit `.env` or ship weak values.
 
@@ -182,11 +158,6 @@ Once all three services are up:
 Interactive API documentation is available at **http://localhost:8000/docs**.
 
 ---
-
-## Testing
-
-The backend ships with a pytest suite covering the core money invariants
-(escrow round-trip, circuit filter, tick size):
 
 ```bash
 cd backend
