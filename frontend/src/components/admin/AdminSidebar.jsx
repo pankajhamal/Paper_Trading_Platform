@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   Users,
   Banknote,
+  HandCoins,
   ShieldCheck,
   LogOut,
 } from 'lucide-react';
@@ -21,6 +22,7 @@ const NAV_SECTIONS = [
     title: 'Management',
     items: [
       { name: 'Users', icon: Users, path: '/admin/users' },
+      { name: 'Money Requests', icon: HandCoins, path: '/admin/fund-requests' },
       { name: 'Withdrawals', icon: Banknote, path: '/admin/withdrawals' },
     ],
   },

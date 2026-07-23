@@ -15,10 +15,12 @@ import DashboardHome from './components/dashboard/DashboardHome';
 import Charts from './components/dashboard/Charts';
 import Alerts from './components/dashboard/Alerts';
 import Wallet from './components/dashboard/Wallet';
+import EBank from './components/dashboard/EBank';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminOverview from './components/admin/AdminOverview';
 import AdminUsers from './components/admin/AdminUsers';
 import AdminWithdrawals from './components/admin/AdminWithdrawals';
+import AdminFundRequests from './components/admin/AdminFundRequests';
 
 // Route Guard for the trading workspace.
 // Admins don't use the trading workspace — they're sent to the admin panel.
@@ -66,6 +68,7 @@ function App() {
             <Route path="market" element={<Market />} />
             <Route path="watchlist" element={<Watchlist />} />
             <Route path="history" element={<History />} />
+            <Route path="ebank" element={<EBank />} />
             <Route path="wallet" element={<Wallet />} />
             <Route path="alerts" element={<Alerts />} />
             <Route path="settings" element={<Settings />} />
@@ -79,6 +82,7 @@ function App() {
           }>
             <Route index element={<AdminOverview />} />
             <Route path="users" element={<AdminUsers />} />
+            <Route path="fund-requests" element={<AdminFundRequests />} />
             <Route path="withdrawals" element={<AdminWithdrawals />} />
           </Route>
 

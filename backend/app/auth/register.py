@@ -6,6 +6,7 @@ from app.auth.utils import hash_password
 from app.database.connection import get_db
 from app.models.users import User
 from app.models.wallet import Wallet
+from app.models.bank_account import BankAccount
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -38,7 +39,16 @@ def register_user(user: UserRegister, db: Session = Depends(get_db)):
 
     db.add(wallet)
 
-    #Commit both User Wallet
+    #Auto create e-bank account (the funding source) linked to user
+    bank = BankAccount(
+      user_id = new_user.user_id,
+      balance = 100000,
+      bank_name = "PaperTrade Bank"
+    )
+
+    db.add(bank)
+
+    #Commit User + Wallet + BankAccount
     db.commit()
     db.refresh(new_user)
   

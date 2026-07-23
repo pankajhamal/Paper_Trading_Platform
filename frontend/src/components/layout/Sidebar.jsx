@@ -16,6 +16,7 @@ import {
   LogOut,
   CandlestickChart,
   Wallet,
+  Landmark,
 } from 'lucide-react';
 
 // Navigation grouped into labelled sections, the way a real trading terminal
@@ -45,6 +46,7 @@ const NAV_SECTIONS = [
   {
     title: 'Account',
     items: [
+      { name: 'E-Bank', icon: Landmark, path: '/ebank' },
       { name: 'Wallet', icon: Wallet, path: '/wallet' },
       { name: 'Settings', icon: Settings, path: '/settings' },
     ],

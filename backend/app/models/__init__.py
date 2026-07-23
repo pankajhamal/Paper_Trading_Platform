@@ -7,6 +7,8 @@ from .order import Order
 from .watchlist import Watchlist
 from .alert import Alert
 from .withdrawal import WithdrawalRequest
+from .bank_account import BankAccount
+from .fund_request import FundRequest
 
 __all__ = [
     "Stock",
@@ -18,4 +20,6 @@ __all__ = [
     "Watchlist",
     "Alert",
     "WithdrawalRequest",
+    "BankAccount",
+    "FundRequest",
 ]

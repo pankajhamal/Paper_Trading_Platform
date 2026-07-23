@@ -16,6 +16,7 @@ class User(Base):
     is_active = Column(Boolean, nullable=False, default=True, server_default="true")
 
     wallet=relationship("Wallet", back_populates="user", uselist=False)
+    bank_account=relationship("BankAccount", back_populates="user", uselist=False)
     transactions=relationship("Transaction", back_populates="user")
     portfolio = relationship("Portfolio", back_populates="user", cascade="all, delete-orphan")
     orders=relationship("Order", back_populates="user", cascade="all, delete-orphan")

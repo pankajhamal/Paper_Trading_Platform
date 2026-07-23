@@ -7,8 +7,10 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRES_MINUTES: int
 
     # --- Default admin (seeded on startup if missing) ---
+    # No password default is shipped in code — it MUST come from the environment
+    # so a fresh deploy can never boot with a known, guessable admin password.
     DEFAULT_ADMIN_EMAIL: str = "admin@gmail.com"
-    DEFAULT_ADMIN_PASSWORD: str = "admin@123"
+    DEFAULT_ADMIN_PASSWORD: str
     DEFAULT_ADMIN_NAME: str = "Administrator"
 
     # --- Order lifecycle tuning (safe defaults; override in .env if desired) ---

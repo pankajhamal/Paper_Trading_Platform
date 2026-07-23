@@ -12,6 +12,7 @@ export const useAdminStore = create((set, get) => ({
   overview: null,
   users: [],
   withdrawals: [],
+  fundRequests: [],
   loading: false,
   error: null,
 
@@ -80,6 +81,36 @@ export const useAdminStore = create((set, get) => ({
   rejectWithdrawal: async (requestId, note) => {
     try {
       await API.post(`/admin/withdrawals/${requestId}/reject`, { note: note || null });
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: errMessage(error, 'Failed to reject request.') };
+    }
+  },
+
+  // --- Fund (money) requests ---
+  fetchFundRequests: async (statusFilter) => {
+    set({ loading: true, error: null });
+    try {
+      const params = statusFilter ? { status_filter: statusFilter } : {};
+      const { data } = await API.get('/admin/fund-requests', { params });
+      set({ fundRequests: data || [], loading: false });
+    } catch (error) {
+      set({ error: errMessage(error, 'Failed to load fund requests.'), loading: false });
+    }
+  },
+
+  approveFundRequest: async (requestId, note) => {
+    try {
+      await API.post(`/admin/fund-requests/${requestId}/approve`, { note: note || null });
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: errMessage(error, 'Failed to approve request.') };
+    }
+  },
+
+  rejectFundRequest: async (requestId, note) => {
+    try {
+      await API.post(`/admin/fund-requests/${requestId}/reject`, { note: note || null });
       return { success: true };
     } catch (error) {
       return { success: false, error: errMessage(error, 'Failed to reject request.') };

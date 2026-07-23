@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, DateTime, ForeignKey, Numeric
+from sqlalchemy import Column, Integer, DateTime, ForeignKey, Numeric, CheckConstraint
 from app.database.base import Base
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
@@ -14,3 +14,6 @@ class Wallet(Base):
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.utcnow(), onupdate=datetime.utcnow())
 
     user = relationship("User", back_populates="wallet")
+
+    # A wallet balance must never go negative — the DB backstops the app guards.
+    __table_args__ = (CheckConstraint("balance >= 0", name="ck_wallet_balance_nonneg"),)

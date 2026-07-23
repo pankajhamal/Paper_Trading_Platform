@@ -1,5 +1,5 @@
 # app/models/order.py
-from sqlalchemy import Column, Integer, String, Numeric, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Numeric, DateTime, ForeignKey, CheckConstraint
 from datetime import datetime
 from app.database.base import Base # Adjust import to match your project path
 from sqlalchemy.orm import relationship
@@ -20,5 +20,11 @@ class Order(Base):
     
     status = Column(String, default="PENDING") # "PENDING", "COMPLETED", "CANCELLED"
     created_at = Column(DateTime, default=datetime.utcnow)
-    
+
     user = relationship("User", back_populates="orders")
+
+    # Quantities never go negative (backstops the partial-fill / escrow math).
+    __table_args__ = (
+        CheckConstraint("quantity >= 0", name="ck_order_quantity_nonneg"),
+        CheckConstraint("remaining_quantity >= 0", name="ck_order_remaining_nonneg"),
+    )

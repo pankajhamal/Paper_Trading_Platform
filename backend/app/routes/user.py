@@ -16,8 +16,10 @@ from app.models.stock import Stock
 from app.auth.dependencies import get_current_user
 from app.auth.utils import hash_password, verify_password
 from app.schemas.UserProfile import ProfileUpdate, PasswordChange
-from app.schemas.wallet import WalletDeposit, WalletWithdraw
+from app.schemas.wallet import WalletDeposit, WalletWithdraw, BankLoad, FundRequestCreate
 from app.models.withdrawal import WithdrawalRequest
+from app.models.bank_account import BankAccount
+from app.models.fund_request import FundRequest
 from app.controller.orders import get_user_orders  # New import
 
 
@@ -215,17 +217,59 @@ async def get_user_wallet(
     }
 
 
-# 2b. Load paper funds into the wallet (POST /users/me/wallet/deposit)
-@router.post("/me/wallet/deposit")
-async def deposit_to_wallet(
-    payload: WalletDeposit,
+# --- E-Bank: the simulated funding source the user loads into their wallet ---
+
+def get_or_create_bank(user_id: int, db: Session, lock: bool = False) -> BankAccount:
+    """
+    Return the user's e-bank account, creating a default one (Rs 100,000) if it
+    doesn't exist yet. This lets pre-existing users (created before the e-bank
+    feature) work without depending on the backfill migration. Pass lock=True to
+    select the row FOR UPDATE when a balance mutation follows.
+    """
+    query = db.query(BankAccount).filter(BankAccount.user_id == user_id)
+    if lock:
+        query = query.with_for_update()
+    bank = query.first()
+    if bank is None:
+        bank = BankAccount(user_id=user_id, balance=100000, bank_name="PaperTrade Bank")
+        db.add(bank)
+        db.commit()
+        # Re-select (with the lock if requested) now that the row exists.
+        query = db.query(BankAccount).filter(BankAccount.user_id == user_id)
+        if lock:
+            query = query.with_for_update()
+        bank = query.first()
+    return bank
+
+
+# 2b. Get the current user's e-bank balance (GET /users/me/bank)
+@router.get("/me/bank")
+async def get_bank(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    bank = get_or_create_bank(current_user.user_id, db)
+    return {
+        "balance": float(bank.balance),
+        "bank_name": bank.bank_name,
+        "currency": "NPR"
+    }
+
+
+# 2c. Load funds from the e-bank into the wallet (POST /users/me/bank/load).
+#     Gated by the e-bank balance — this is the only way to fund the wallet now.
+@router.post("/me/bank/load")
+async def load_from_bank(
+    payload: BankLoad,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
-    Credits the logged-in user's wallet with paper funds and records a DEPOSIT
-    entry in the transaction ledger.
+    Debits the e-bank and credits the trading wallet by the same amount, atomically.
+    Rejects the load if the e-bank balance is insufficient.
     """
+    # Lock the bank row first, then the wallet row (consistent order avoids deadlock).
+    bank = get_or_create_bank(current_user.user_id, db, lock=True)
     wallet = db.query(Wallet).filter(
         Wallet.user_id == current_user.user_id
     ).with_for_update().first()
@@ -236,25 +280,99 @@ async def deposit_to_wallet(
         )
 
     amount = Decimal(str(payload.amount)).quantize(Decimal("0.01"))
-    new_balance = Decimal(str(wallet.balance)) + amount
-    wallet.balance = float(new_balance)
+    bank_balance = Decimal(str(bank.balance))
+    if amount > bank_balance:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Insufficient bank balance (Rs. {bank_balance:,.2f}). Request more funds to top up your e-bank."
+        )
+
+    if payload.bank_name:
+        bank.bank_name = payload.bank_name
+
+    bank.balance = float(bank_balance - amount)
+    wallet.balance = float(Decimal(str(wallet.balance)) + amount)
 
     db.add(Transaction(
         user_id=current_user.user_id,
         type="DEPOSIT",
         amount=amount,
-        description=f"Loaded Rs. {amount:,.2f} into wallet",
+        description=f"Loaded Rs. {amount:,.2f} from {bank.bank_name} into wallet",
         created_at=datetime.utcnow()
     ))
 
     db.commit()
+    db.refresh(bank)
     db.refresh(wallet)
 
     return {
-        "balance": float(wallet.balance),
+        "wallet_balance": float(wallet.balance),
+        "bank_balance": float(bank.balance),
+        "bank_name": bank.bank_name,
         "currency": "NPR",
         "amount": float(amount)
     }
+
+
+# 2d. Request more paper money (POST /users/me/bank/request).
+#     Nothing is held — an admin later approves (credits the e-bank) or rejects.
+@router.post("/me/bank/request")
+async def request_funds(
+    payload: FundRequestCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Creates a PENDING fund request. On approval the e-bank balance is credited."""
+    amount = Decimal(str(payload.amount)).quantize(Decimal("0.01"))
+
+    fund_request = FundRequest(
+        user_id=current_user.user_id,
+        amount=amount,
+        status="PENDING",
+        note=payload.note,
+        created_at=datetime.utcnow()
+    )
+    db.add(fund_request)
+
+    db.add(Transaction(
+        user_id=current_user.user_id,
+        type="FUND_REQUEST",
+        amount=amount,
+        description=f"Requested Rs. {amount:,.2f} — pending approval",
+        created_at=datetime.utcnow()
+    ))
+
+    db.commit()
+    db.refresh(fund_request)
+
+    return {
+        "request_id": fund_request.id,
+        "amount": float(amount),
+        "status": fund_request.status,
+    }
+
+
+# 2e. List the current user's own fund requests (GET /users/me/bank/requests).
+@router.get("/me/bank/requests")
+async def get_my_fund_requests(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Returns the logged-in user's fund requests, most recent first."""
+    requests = db.query(FundRequest).filter(
+        FundRequest.user_id == current_user.user_id
+    ).order_by(FundRequest.created_at.desc()).all()
+    return [
+        {
+            "request_id": r.id,
+            "amount": float(r.amount),
+            "status": r.status,
+            "note": r.note,
+            "created_at": r.created_at,
+            "reviewed_at": r.reviewed_at,
+        }
+        for r in requests
+    ]
 
 
 # 2c. Request a withdrawal (POST /users/me/wallet/withdraw).
@@ -266,12 +384,13 @@ async def request_withdrawal(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Creates a PENDING withdrawal request and holds the funds (deducts them from
-    the wallet). If an admin rejects the request the amount is refunded.
+    Creates a PENDING withdrawal request (wallet -> bank). Nothing is deducted
+    now — an admin approves it (wallet debited, e-bank credited) or rejects it
+    (no change). The wallet balance is re-checked at approval time.
     """
     wallet = db.query(Wallet).filter(
         Wallet.user_id == current_user.user_id
-    ).with_for_update().first()
+    ).first()
     if not wallet:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -283,11 +402,8 @@ async def request_withdrawal(
     if amount > balance:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Insufficient balance. Available: Rs. {balance:,.2f}"
+            detail=f"Insufficient wallet balance. Available: Rs. {balance:,.2f}"
         )
-
-    # Hold the funds now so they can't be spent while the request is pending.
-    wallet.balance = float(balance - amount)
 
     withdrawal = WithdrawalRequest(
         user_id=current_user.user_id,
@@ -297,24 +413,13 @@ async def request_withdrawal(
     )
     db.add(withdrawal)
 
-    db.add(Transaction(
-        user_id=current_user.user_id,
-        type="WITHDRAW",
-        amount=amount,
-        description=f"Withdrawal request for Rs. {amount:,.2f} — pending approval",
-        created_at=datetime.utcnow()
-    ))
-
     db.commit()
     db.refresh(withdrawal)
-    db.refresh(wallet)
 
     return {
         "request_id": withdrawal.id,
         "amount": float(amount),
         "status": withdrawal.status,
-        "balance": float(wallet.balance),
-        "currency": "NPR"
     }
 
 

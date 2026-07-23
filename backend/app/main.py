@@ -6,7 +6,7 @@ from app.service.expiration import cancel_expired_daily_orders
 from app.service.matcher import match_pending_orders
 from app.service.alert_checker import check_price_alerts
 from app.service.seed import seed_default_admin
-from app.models import User, Wallet, Transaction, Stock, Portfolio, Order, WithdrawalRequest
+from app.models import User, Wallet, Transaction, Stock, Portfolio, Order, WithdrawalRequest, BankAccount, FundRequest
 import asyncio
 import os
 from fastapi.middleware.cors import CORSMiddleware

@@ -1,7 +1,7 @@
-// components/admin/AdminWithdrawals.jsx
+// components/admin/AdminFundRequests.jsx
 import React, { useEffect, useState } from 'react';
 import { useAdminStore } from '../../store/useAdminStore';
-import { RefreshCw, Banknote, Check, X, Clock } from 'lucide-react';
+import { RefreshCw, HandCoins, Check, X, Clock } from 'lucide-react';
 
 const fmtMoney = (n) =>
   Number(n || 0).toLocaleString(undefined, {
@@ -29,19 +29,19 @@ const STATUS_META = {
 
 const FILTERS = ['PENDING', 'APPROVED', 'REJECTED', 'ALL'];
 
-const AdminWithdrawals = () => {
-  const withdrawals = useAdminStore((s) => s.withdrawals);
+const AdminFundRequests = () => {
+  const fundRequests = useAdminStore((s) => s.fundRequests);
   const loading = useAdminStore((s) => s.loading);
   const error = useAdminStore((s) => s.error);
-  const fetchWithdrawals = useAdminStore((s) => s.fetchWithdrawals);
-  const approveWithdrawal = useAdminStore((s) => s.approveWithdrawal);
-  const rejectWithdrawal = useAdminStore((s) => s.rejectWithdrawal);
+  const fetchFundRequests = useAdminStore((s) => s.fetchFundRequests);
+  const approveFundRequest = useAdminStore((s) => s.approveFundRequest);
+  const rejectFundRequest = useAdminStore((s) => s.rejectFundRequest);
 
   const [filter, setFilter] = useState('PENDING');
   const [busyId, setBusyId] = useState(null);
   const [banner, setBanner] = useState(null);
 
-  const load = (f = filter) => fetchWithdrawals(f === 'ALL' ? undefined : f);
+  const load = (f = filter) => fetchFundRequests(f === 'ALL' ? undefined : f);
 
   useEffect(() => {
     load(filter);
@@ -50,7 +50,7 @@ const AdminWithdrawals = () => {
 
   const act = async (req, kind) => {
     setBusyId(req.request_id);
-    const fn = kind === 'approve' ? approveWithdrawal : rejectWithdrawal;
+    const fn = kind === 'approve' ? approveFundRequest : rejectFundRequest;
     const result = await fn(req.request_id);
     setBusyId(null);
     if (result.success) {
@@ -58,7 +58,7 @@ const AdminWithdrawals = () => {
         type: 'success',
         message:
           kind === 'approve'
-            ? `Request #${req.request_id} approved — Rs. ${fmtMoney(req.amount)} moved to their bank.`
+            ? `Request #${req.request_id} approved — Rs. ${fmtMoney(req.amount)} credited to their e-bank.`
             : `Request #${req.request_id} rejected.`,
       });
       load();
@@ -71,8 +71,8 @@ const AdminWithdrawals = () => {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Withdrawals</h1>
-          <p className="text-sm text-slate-500">Review and verify withdrawal requests</p>
+          <h1 className="text-2xl font-bold text-slate-800">Money Requests</h1>
+          <p className="text-sm text-slate-500">Review and approve fund top-up requests</p>
         </div>
         <button
           onClick={() => load()}
@@ -117,7 +117,7 @@ const AdminWithdrawals = () => {
       {/* Table */}
       <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          {loading && withdrawals.length === 0 ? (
+          {loading && fundRequests.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-slate-500 space-y-2">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
               <p className="text-sm font-medium">Loading requests…</p>
@@ -126,10 +126,10 @@ const AdminWithdrawals = () => {
             <div className="text-center py-16">
               <p className="text-sm font-semibold text-rose-600">{error}</p>
             </div>
-          ) : withdrawals.length === 0 ? (
+          ) : fundRequests.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center text-slate-500">
               <div className="flex items-center justify-center h-12 w-12 rounded-full bg-slate-100 text-slate-400 mb-3">
-                <Banknote size={22} />
+                <HandCoins size={22} />
               </div>
               <p className="text-sm font-medium">No {filter.toLowerCase()} requests.</p>
             </div>
@@ -140,13 +140,14 @@ const AdminWithdrawals = () => {
                   <th className="px-5 py-3">Req #</th>
                   <th className="px-5 py-3">User</th>
                   <th className="px-5 py-3 text-right">Amount</th>
+                  <th className="px-5 py-3">Reason</th>
                   <th className="px-5 py-3">Requested</th>
                   <th className="px-5 py-3">Status</th>
                   <th className="px-5 py-3 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-sm">
-                {withdrawals.map((r) => (
+                {fundRequests.map((r) => (
                   <tr key={r.request_id} className="hover:bg-slate-50/60 transition-colors">
                     <td className="px-5 py-3.5 text-slate-400 tabular-nums">#{r.request_id}</td>
                     <td className="px-5 py-3.5">
@@ -157,6 +158,9 @@ const AdminWithdrawals = () => {
                     </td>
                     <td className="px-5 py-3.5 text-right font-bold text-slate-800 tabular-nums">
                       Rs. {fmtMoney(r.amount)}
+                    </td>
+                    <td className="px-5 py-3.5 text-slate-600 max-w-xs truncate">
+                      {r.note || '—'}
                     </td>
                     <td className="px-5 py-3.5 text-slate-500 whitespace-nowrap">
                       {fmtDateTime(r.created_at)}
@@ -208,4 +212,4 @@ const AdminWithdrawals = () => {
   );
 };
 
-export default AdminWithdrawals;
+export default AdminFundRequests;

@@ -1,11 +1,13 @@
 // components/dashboard/Wallet.jsx
 import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../../store/useAppStore';
 import { useHistoryStore } from '../../store/useHistoryStore';
+import { useBankStore } from '../../store/useBankStore';
 import {
   Wallet as WalletIcon,
-  Plus,
-  ArrowDownToLine,
+  Landmark,
+  ArrowRight,
   ArrowUpFromLine,
   ArrowDownLeft,
   ArrowUpRight,
@@ -13,8 +15,14 @@ import {
   Receipt,
   RefreshCw,
   Check,
-  Lock,
+  Clock,
 } from 'lucide-react';
+
+const STATUS_META = {
+  PENDING: 'bg-amber-50 text-amber-600 border-amber-100',
+  APPROVED: 'bg-emerald-50 text-emerald-600 border-emerald-100',
+  REJECTED: 'bg-rose-50 text-rose-600 border-rose-100',
+};
 
 // Money flowing INTO the wallet vs OUT of it, keyed by transaction type.
 const INFLOW_TYPES = new Set(['SELL', 'ESCROW_RELEASE', 'DEPOSIT', 'CREDIT', 'REFUND']);
@@ -62,6 +70,10 @@ const typeMeta = (type) => {
       return { label: 'Escrow Hold', cls: 'bg-amber-50 text-amber-600 border-amber-100' };
     case 'ESCROW_RELEASE':
       return { label: 'Cash Refund', cls: 'bg-blue-50 text-blue-600 border-blue-100' };
+    case 'FUND_REQUEST':
+      return { label: 'Fund Request', cls: 'bg-amber-50 text-amber-600 border-amber-100' };
+    case 'FUND_APPROVED':
+      return { label: 'Fund Approved', cls: 'bg-emerald-50 text-emerald-600 border-emerald-100' };
     default:
       return {
         label: t.replace(/_/g, ' ').toLowerCase(),
@@ -70,49 +82,62 @@ const typeMeta = (type) => {
   }
 };
 
-const QUICK_AMOUNTS = [10000, 50000, 100000, 500000];
-
 const Wallet = () => {
+  const navigate = useNavigate();
   const balance = useAppStore((s) => s.portfolio.balance);
   const fetchWallet = useAppStore((s) => s.fetchWallet);
-  const depositFunds = useAppStore((s) => s.depositFunds);
 
   const transactions = useHistoryStore((s) => s.transactions);
   const txLoading = useHistoryStore((s) => s.isLoading);
   const fetchTransactions = useHistoryStore((s) => s.fetchTransactions);
 
-  const [amount, setAmount] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [feedback, setFeedback] = useState(null); // { type: 'success' | 'error', message }
+  const withdrawals = useBankStore((s) => s.withdrawals);
+  const fetchWithdrawals = useBankStore((s) => s.fetchWithdrawals);
+  const requestWithdrawal = useBankStore((s) => s.requestWithdrawal);
+
   const [scope, setScope] = useState('FUNDS'); // FUNDS | ALL
+  const [wdAmount, setWdAmount] = useState('');
+  const [wdBusy, setWdBusy] = useState(false);
+  const [wdFeedback, setWdFeedback] = useState(null); // { type, message }
 
   useEffect(() => {
     fetchWallet();
     fetchTransactions();
-  }, [fetchWallet, fetchTransactions]);
+    fetchWithdrawals();
+  }, [fetchWallet, fetchTransactions, fetchWithdrawals]);
 
   const refresh = () => {
     fetchWallet();
     fetchTransactions();
+    fetchWithdrawals();
   };
 
-  const handleDeposit = async (e) => {
+  const handleWithdraw = async (e) => {
     e?.preventDefault();
-    const value = Number(amount);
+    const value = Number(wdAmount);
     if (!value || value <= 0) {
-      setFeedback({ type: 'error', message: 'Enter an amount greater than zero.' });
+      setWdFeedback({ type: 'error', message: 'Enter an amount greater than zero.' });
       return;
     }
-    setSubmitting(true);
-    setFeedback(null);
-    const result = await depositFunds(value);
-    setSubmitting(false);
+    if (value > Number(balance)) {
+      setWdFeedback({
+        type: 'error',
+        message: `You only have Rs. ${fmtAmount(balance)} in your wallet.`,
+      });
+      return;
+    }
+    setWdBusy(true);
+    setWdFeedback(null);
+    const result = await requestWithdrawal(value);
+    setWdBusy(false);
     if (result.success) {
-      setFeedback({ type: 'success', message: `Rs. ${fmtAmount(value)} added to your wallet.` });
-      setAmount('');
-      fetchTransactions();
+      setWdFeedback({
+        type: 'success',
+        message: `Withdrawal request for Rs. ${fmtAmount(value)} submitted. It moves to your bank once an admin approves it.`,
+      });
+      setWdAmount('');
     } else {
-      setFeedback({ type: 'error', message: result.error || 'Deposit failed.' });
+      setWdFeedback({ type: 'error', message: result.error || 'Withdrawal request failed.' });
     }
   };
 
@@ -189,85 +214,126 @@ const Wallet = () => {
           </div>
         </div>
 
-        {/* Load funds */}
+        {/* Load funds — now handled via the E-Bank */}
         <div className="rounded-2xl bg-white border border-slate-200 p-6 shadow-sm flex flex-col">
           <div className="flex items-center gap-2 text-slate-800">
             <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-blue-50 text-blue-600">
-              <Plus size={17} />
+              <Landmark size={17} />
             </div>
             <h2 className="text-sm font-bold">Load Funds</h2>
           </div>
 
-          <form onSubmit={handleDeposit} className="mt-4 space-y-3">
-            <div className="grid grid-cols-2 gap-2">
-              {QUICK_AMOUNTS.map((amt) => (
-                <button
-                  key={amt}
-                  type="button"
-                  onClick={() => setAmount(String(amt))}
-                  className={`px-2 py-2 rounded-lg text-xs font-bold border transition-colors ${
-                    Number(amount) === amt
-                      ? 'bg-blue-600 text-white border-blue-600'
-                      : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-blue-300'
-                  }`}
-                >
-                  +{(amt / 1000).toLocaleString()}K
-                </button>
-              ))}
-            </div>
+          <p className="mt-3 text-sm text-slate-500 flex-1">
+            Fund your trading wallet from your E-Bank. Loads are drawn from your
+            bank balance — top it up there if you need more.
+          </p>
 
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400">
-                Rs.
-              </span>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="Enter amount"
-                className="w-full pl-10 pr-3 py-2.5 text-sm bg-white border border-slate-200 rounded-lg text-slate-800 tabular-nums focus:ring-2 focus:ring-blue-100 focus:border-blue-500 outline-none placeholder:text-slate-400"
-              />
-            </div>
-
-            {feedback && (
-              <div
-                className={`flex items-center gap-2 text-xs font-medium rounded-lg px-3 py-2 ${
-                  feedback.type === 'success'
-                    ? 'bg-emerald-50 text-emerald-700'
-                    : 'bg-rose-50 text-rose-700'
-                }`}
-              >
-                {feedback.type === 'success' && <Check size={14} />}
-                {feedback.message}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={submitting}
-              className="w-full inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2.5 rounded-lg shadow-sm transition-colors disabled:opacity-60"
-            >
-              <ArrowDownToLine size={16} />
-              {submitting ? 'Loading…' : 'Add to Wallet'}
-            </button>
-
-            {/* Withdraw — reserved for a future release */}
-            <button
-              type="button"
-              disabled
-              title="Withdrawals are coming soon"
-              className="w-full inline-flex items-center justify-center gap-2 bg-slate-50 text-slate-400 font-semibold px-4 py-2.5 rounded-lg border border-slate-200 cursor-not-allowed"
-            >
-              <ArrowUpFromLine size={16} />
-              Withdraw
-              <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                <Lock size={11} /> Soon
-              </span>
-            </button>
-          </form>
+          <button
+            onClick={() => navigate('/ebank')}
+            className="mt-4 w-full inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2.5 rounded-lg shadow-sm transition-colors"
+          >
+            <Landmark size={16} />
+            Go to E-Bank
+            <ArrowRight size={16} />
+          </button>
         </div>
+      </div>
+
+      {/* Withdraw to bank */}
+      <div className="rounded-2xl bg-white border border-slate-200 p-6 shadow-sm">
+        <div className="flex items-center gap-2 text-slate-800">
+          <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-rose-50 text-rose-600">
+            <ArrowUpFromLine size={17} />
+          </div>
+          <div>
+            <h2 className="text-sm font-bold">Withdraw to Bank</h2>
+            <p className="text-xs text-slate-500">
+              Move cash from your wallet back to your bank. An admin reviews it —
+              the wallet is debited only once approved.
+            </p>
+          </div>
+        </div>
+
+        <form onSubmit={handleWithdraw} className="mt-4 grid grid-cols-1 sm:grid-cols-[240px_auto] gap-3 items-start">
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400">
+              Rs.
+            </span>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={wdAmount}
+              onChange={(e) => setWdAmount(e.target.value)}
+              placeholder="Amount to withdraw"
+              className="w-full pl-10 pr-3 py-2.5 text-sm bg-white border border-slate-200 rounded-lg text-slate-800 tabular-nums focus:ring-2 focus:ring-rose-100 focus:border-rose-500 outline-none placeholder:text-slate-400"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={wdBusy}
+            className="inline-flex items-center justify-center gap-2 bg-rose-600 hover:bg-rose-700 text-white font-semibold px-4 py-2.5 rounded-lg shadow-sm transition-colors disabled:opacity-60 whitespace-nowrap"
+          >
+            <ArrowUpFromLine size={16} />
+            {wdBusy ? 'Requesting…' : 'Request Withdrawal'}
+          </button>
+        </form>
+
+        {wdFeedback && (
+          <div
+            className={`mt-3 flex items-center gap-2 text-xs font-medium rounded-lg px-3 py-2 ${
+              wdFeedback.type === 'success'
+                ? 'bg-emerald-50 text-emerald-700'
+                : 'bg-rose-50 text-rose-700'
+            }`}
+          >
+            {wdFeedback.type === 'success' && <Check size={14} />}
+            {wdFeedback.message}
+          </div>
+        )}
+
+        {withdrawals.length > 0 && (
+          <div className="mt-5 border-t border-slate-100 pt-4">
+            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+              Withdrawal Requests
+            </h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="text-slate-400 text-xs font-semibold uppercase tracking-wider border-b border-slate-100">
+                    <th className="py-2 pr-4">Req #</th>
+                    <th className="py-2 pr-4 text-right">Amount</th>
+                    <th className="py-2 pr-4">Requested</th>
+                    <th className="py-2">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-sm">
+                  {withdrawals.map((w) => (
+                    <tr key={w.request_id}>
+                      <td className="py-2.5 pr-4 text-slate-400 tabular-nums">#{w.request_id}</td>
+                      <td className="py-2.5 pr-4 text-right font-bold text-slate-800 tabular-nums">
+                        Rs. {fmtAmount(w.amount)}
+                      </td>
+                      <td className="py-2.5 pr-4 text-slate-500 whitespace-nowrap">
+                        {fmtDateTime(w.created_at)}
+                      </td>
+                      <td className="py-2.5">
+                        <span
+                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border ${
+                            STATUS_META[w.status] || 'bg-slate-100 text-slate-600 border-slate-200'
+                          }`}
+                        >
+                          {w.status === 'PENDING' && <Clock size={11} />}
+                          {w.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Fund activity ledger */}

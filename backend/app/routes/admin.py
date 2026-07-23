@@ -14,6 +14,8 @@ from app.models.users import User
 from app.models.wallet import Wallet
 from app.models.transaction import Transaction
 from app.models.withdrawal import WithdrawalRequest
+from app.models.fund_request import FundRequest
+from app.models.bank_account import BankAccount
 from app.auth.dependencies import get_current_admin
 
 logger = logging.getLogger(__name__)
@@ -43,6 +45,12 @@ async def admin_overview(db: Session = Depends(get_db)):
     pending_amount = db.query(func.coalesce(func.sum(WithdrawalRequest.amount), 0)).filter(
         WithdrawalRequest.status == "PENDING"
     ).scalar() or 0
+    pending_fund_count = db.query(func.count(FundRequest.id)).filter(
+        FundRequest.status == "PENDING"
+    ).scalar() or 0
+    pending_fund_amount = db.query(func.coalesce(func.sum(FundRequest.amount), 0)).filter(
+        FundRequest.status == "PENDING"
+    ).scalar() or 0
 
     return {
         "total_users": total_users,
@@ -51,6 +59,8 @@ async def admin_overview(db: Session = Depends(get_db)):
         "total_wallet_balance": float(total_balance),
         "pending_withdrawals": pending_count,
         "pending_withdrawals_amount": float(pending_amount),
+        "pending_fund_requests": pending_fund_count,
+        "pending_fund_requests_amount": float(pending_fund_amount),
     }
 
 
@@ -155,7 +165,7 @@ def _load_pending_request(request_id: int, db: Session) -> WithdrawalRequest:
 
 
 # 6. Approve a withdrawal (POST /admin/withdrawals/{id}/approve)
-#    Funds were already held at request time, so no balance change here.
+#    Debits the user's wallet and credits their e-bank, atomically.
 @router.post("/withdrawals/{request_id}/approve")
 async def approve_withdrawal(
     request_id: int,
@@ -164,15 +174,53 @@ async def approve_withdrawal(
     admin: User = Depends(get_current_admin),
 ):
     req = _load_pending_request(request_id, db)
+
+    # Lock the wallet (debit) and the bank (credit) in a consistent order.
+    wallet = db.query(Wallet).filter(
+        Wallet.user_id == req.user_id
+    ).with_for_update().first()
+    if not wallet:
+        raise HTTPException(status_code=404, detail="User wallet not found.")
+
+    bank = db.query(BankAccount).filter(
+        BankAccount.user_id == req.user_id
+    ).with_for_update().first()
+    if bank is None:
+        bank = BankAccount(user_id=req.user_id, balance=100000, bank_name="PaperTrade Bank")
+        db.add(bank)
+        db.flush()
+
+    amount = Decimal(str(req.amount))
+    wallet_balance = Decimal(str(wallet.balance))
+    if amount > wallet_balance:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"User's wallet balance (Rs. {wallet_balance:,.2f}) is now less than the "
+                f"requested Rs. {amount:,.2f}. Cannot approve — reject it instead."
+            ),
+        )
+
+    wallet.balance = float(wallet_balance - amount)
+    bank.balance = float(Decimal(str(bank.balance)) + amount)
+
+    db.add(Transaction(
+        user_id=req.user_id,
+        type="WITHDRAW",
+        amount=amount,
+        description=f"Withdrawal #{req.id} approved — Rs. {amount:,.2f} moved to {bank.bank_name}",
+        created_at=datetime.utcnow()
+    ))
+
     req.status = "APPROVED"
     req.note = payload.note
     req.reviewed_by = admin.user_id
     req.reviewed_at = datetime.utcnow()
     db.commit()
-    return {"request_id": request_id, "status": "APPROVED"}
+    return {"request_id": request_id, "status": "APPROVED", "debited": float(amount)}
 
 
-# 7. Reject a withdrawal (POST /admin/withdrawals/{id}/reject) — refunds the hold.
+# 7. Reject a withdrawal (POST /admin/withdrawals/{id}/reject) — no balance change.
 @router.post("/withdrawals/{request_id}/reject")
 async def reject_withdrawal(
     request_id: int,
@@ -181,27 +229,108 @@ async def reject_withdrawal(
     admin: User = Depends(get_current_admin),
 ):
     req = _load_pending_request(request_id, db)
-
-    wallet = db.query(Wallet).filter(
-        Wallet.user_id == req.user_id
-    ).with_for_update().first()
-    if not wallet:
-        raise HTTPException(status_code=404, detail="User wallet not found.")
-
-    amount = Decimal(str(req.amount))
-    wallet.balance = float(Decimal(str(wallet.balance)) + amount)
-
-    db.add(Transaction(
-        user_id=req.user_id,
-        type="REFUND",
-        amount=amount,
-        description=f"Withdrawal request #{req.id} rejected — Rs. {amount:,.2f} refunded",
-        created_at=datetime.utcnow()
-    ))
-
     req.status = "REJECTED"
     req.note = payload.note
     req.reviewed_by = admin.user_id
     req.reviewed_at = datetime.utcnow()
     db.commit()
-    return {"request_id": request_id, "status": "REJECTED", "refunded": float(amount)}
+    return {"request_id": request_id, "status": "REJECTED"}
+
+
+# 8. List fund (money) requests, optionally filtered by status (GET /admin/fund-requests)
+@router.get("/fund-requests")
+async def list_fund_requests(
+    status_filter: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    query = db.query(FundRequest, User).join(
+        User, User.user_id == FundRequest.user_id
+    )
+    if status_filter:
+        query = query.filter(FundRequest.status == status_filter.upper())
+
+    rows = query.order_by(FundRequest.created_at.desc()).all()
+    return [
+        {
+            "request_id": r.id,
+            "user_id": r.user_id,
+            "user_name": u.full_name,
+            "user_email": u.email,
+            "amount": float(r.amount),
+            "status": r.status,
+            "note": r.note,
+            "created_at": r.created_at,
+            "reviewed_at": r.reviewed_at,
+            "reviewed_by": r.reviewed_by,
+        }
+        for r, u in rows
+    ]
+
+
+def _load_pending_fund_request(request_id: int, db: Session) -> FundRequest:
+    req = db.query(FundRequest).filter(
+        FundRequest.id == request_id
+    ).with_for_update().first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Fund request not found.")
+    if req.status != "PENDING":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Request already {req.status.lower()}.",
+        )
+    return req
+
+
+# 9. Approve a fund request (POST /admin/fund-requests/{id}/approve) — credits the e-bank.
+@router.post("/fund-requests/{request_id}/approve")
+async def approve_fund_request(
+    request_id: int,
+    payload: ReviewNote = ReviewNote(),
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+):
+    req = _load_pending_fund_request(request_id, db)
+
+    # Credit the requesting user's e-bank (create the row if it doesn't exist yet).
+    bank = db.query(BankAccount).filter(
+        BankAccount.user_id == req.user_id
+    ).with_for_update().first()
+    if bank is None:
+        bank = BankAccount(user_id=req.user_id, balance=100000, bank_name="PaperTrade Bank")
+        db.add(bank)
+        db.flush()
+
+    amount = Decimal(str(req.amount))
+    bank.balance = float(Decimal(str(bank.balance)) + amount)
+
+    db.add(Transaction(
+        user_id=req.user_id,
+        type="FUND_APPROVED",
+        amount=amount,
+        description=f"Fund request #{req.id} approved — Rs. {amount:,.2f} credited to e-bank",
+        created_at=datetime.utcnow()
+    ))
+
+    req.status = "APPROVED"
+    req.note = payload.note
+    req.reviewed_by = admin.user_id
+    req.reviewed_at = datetime.utcnow()
+    db.commit()
+    return {"request_id": request_id, "status": "APPROVED", "credited": float(amount)}
+
+
+# 10. Reject a fund request (POST /admin/fund-requests/{id}/reject) — no balance change.
+@router.post("/fund-requests/{request_id}/reject")
+async def reject_fund_request(
+    request_id: int,
+    payload: ReviewNote = ReviewNote(),
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+):
+    req = _load_pending_fund_request(request_id, db)
+    req.status = "REJECTED"
+    req.note = payload.note
+    req.reviewed_by = admin.user_id
+    req.reviewed_at = datetime.utcnow()
+    db.commit()
+    return {"request_id": request_id, "status": "REJECTED"}

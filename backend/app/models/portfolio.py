@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, ForeignKey, Numeric, DateTime, UniqueConstraint
+from sqlalchemy import Column, Integer, ForeignKey, Numeric, DateTime, UniqueConstraint, CheckConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -21,6 +21,9 @@ class Portfolio(Base):
     user = relationship("User", back_populates="portfolio")
     stock = relationship("Stock", back_populates="portfolio")
 
-    #A user should have only one portfolio per stock 
-    __table_args__ = (UniqueConstraint("user_id", "stock_id", name="uq_user_stock"),)
+    #A user should have only one portfolio per stock; holdings never go negative
+    __table_args__ = (
+        UniqueConstraint("user_id", "stock_id", name="uq_user_stock"),
+        CheckConstraint("quantity >= 0", name="ck_portfolio_qty_nonneg"),
+    )
 

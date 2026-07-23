@@ -245,31 +245,8 @@ export const useAppStore = create((set, get) => ({
     }
   },
 
-  // Action: Load paper funds into the wallet, then refresh the balance
-  depositFunds: async (amount) => {
-    try {
-      const value = Number(amount);
-      if (!value || value <= 0) {
-        return { success: false, error: 'Enter an amount greater than zero.' };
-      }
-      const response = await API.post('/users/me/wallet/deposit', { amount: value });
-      // Reflect the new balance immediately from the response, then re-sync.
-      set((state) => ({
-        portfolio: {
-          ...state.portfolio,
-          balance: parseFloat(response.data?.balance ?? state.portfolio.balance),
-        },
-      }));
-      await get().fetchWallet();
-      return { success: true, balance: response.data?.balance };
-    } catch (error) {
-      const detail = error.response?.data?.detail;
-      const message = Array.isArray(detail)
-        ? detail[0]?.msg || 'Deposit failed.'
-        : detail || error.message || 'Deposit failed.';
-      return { success: false, error: message };
-    }
-  },
+  // Wallet funding now flows through the E-Bank (see useBankStore.loadToWallet),
+  // which credits the wallet and calls fetchWallet() to re-sync this balance.
 
   // Action: Fetch portfolio summary and holdings securely from the backend
   fetchPortfolio: async () => {
