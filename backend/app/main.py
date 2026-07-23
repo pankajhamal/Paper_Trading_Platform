@@ -23,6 +23,7 @@ from app.routes.watchlist import router as watchlist_router
 from app.routes.alerts import router as alerts_router
 from app.routes.market import router as market_router
 from app.routes.admin import router as admin_router
+from app.routes.public import router as public_router
 
 Base.metadata.create_all(bind=engine) 
 
@@ -82,3 +83,4 @@ app.include_router(watchlist_router)
 app.include_router(alerts_router)
 app.include_router(market_router)
 app.include_router(admin_router)
+app.include_router(public_router)
