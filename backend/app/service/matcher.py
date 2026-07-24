@@ -30,34 +30,9 @@ from app.models.stock import Stock
 from app.models.wallet import Wallet
 from app.models.portfolio import Portfolio
 from app.models.transaction import Transaction
-from app.service.cache import LIVE_MARKET_DEPTH
-from app.service.nepse import generate_simulated_depth, generate_simulated_bid_depth
+from app.service.depth import ASKS, BIDS, resolve_levels
 
 logger = logging.getLogger(__name__)
-
-
-def _get_depth_levels(symbol: str, side: str, fallback_price: float) -> list:
-    """
-    Return order-book levels for a symbol.
-
-    side == "sell" -> asks (used to fill a BUY)
-    side == "buy"  -> bids (used to fill a SELL)
-
-    Uses the live RAM cache when available, otherwise a simulated book built
-    around the stock's last traded price (same fallback buy.py / sell.py use).
-    """
-    cached_data = LIVE_MARKET_DEPTH.get(symbol)
-    if cached_data:
-        market_depth = cached_data.get("marketDepth") or cached_data
-        key = "sellMarketDepthList" if side == "sell" else "buyMarketDepthList"
-        levels = market_depth.get(key) or []
-        if levels:
-            return levels
-
-    # Fallback: simulated book around the last known price
-    if side == "sell":
-        return generate_simulated_depth(fallback_price)
-    return generate_simulated_bid_depth(fallback_price)
 
 
 def _walk_levels(levels: list, remaining_qty: int, limit_price: Decimal, side: str):
@@ -105,14 +80,13 @@ def _walk_levels(levels: list, remaining_qty: int, limit_price: Decimal, side: s
     return filled_qty, total_value, breakdown
 
 
-def _fill_buy(order: Order, db: Session) -> int:
-    """Try to fill a pending limit BUY. Returns shares newly filled."""
-    stock = db.query(Stock).filter(Stock.stock_id == order.stock_id).first()
-    if not stock:
-        return 0
+def _fill_buy(order: Order, db: Session, levels: list) -> int:
+    """Try to fill a pending limit BUY against `levels`. Returns shares filled.
 
+    The book is passed in, not fetched here: resolving depth can hit the bridge
+    over HTTP and this runs with the order row locked.
+    """
     limit_price = Decimal(str(order.limit_price))
-    levels = _get_depth_levels(order.symbol, "sell", stock.last_traded_price)
     filled_qty, cost, breakdown = _walk_levels(
         levels, order.remaining_quantity, limit_price, "sell"
     )
@@ -184,14 +158,12 @@ def _fill_buy(order: Order, db: Session) -> int:
     return filled_qty
 
 
-def _fill_sell(order: Order, db: Session) -> int:
-    """Try to fill a pending limit SELL. Returns shares newly filled."""
-    stock = db.query(Stock).filter(Stock.stock_id == order.stock_id).first()
-    if not stock:
-        return 0
+def _fill_sell(order: Order, db: Session, levels: list) -> int:
+    """Try to fill a pending limit SELL against `levels`. Returns shares filled.
 
+    As with `_fill_buy`, the book is resolved by the caller before locking.
+    """
     limit_price = Decimal(str(order.limit_price))
-    levels = _get_depth_levels(order.symbol, "buy", stock.last_traded_price)
     filled_qty, revenue, breakdown = _walk_levels(
         levels, order.remaining_quantity, limit_price, "buy"
     )
@@ -229,6 +201,112 @@ def _fill_sell(order: Order, db: Session) -> int:
     return filled_qty
 
 
+async def run_matching_cycle(db: Session) -> int:
+    """One pass over every pending limit order. Returns shares filled.
+
+    Split out from the loop below so a single cycle can be driven directly
+    (tests, or a manual sweep) without waiting on the scheduler.
+    """
+    # Snapshot the candidate IDs only. We deliberately do NOT hold the ORM
+    # objects: each order is re-fetched under a row lock below so we never
+    # mutate an order a concurrent cancel is also touching. The symbol/price
+    # come along so books can be resolved before any lock is taken.
+    candidates = (
+        db.query(
+            Order.order_id,
+            Order.symbol,
+            Order.transaction_type,
+            Stock.last_traded_price,
+        )
+        .join(Stock, Stock.stock_id == Order.stock_id)
+        .filter(func.lower(Order.status) == "pending")
+        .all()
+    )
+    if not candidates:
+        return 0
+
+    # Resolve every book this cycle needs UP FRONT. Depth resolution can make an
+    # HTTP call to the bridge, and doing that while holding an order row lock
+    # would block a concurrent cancel for the length of a network timeout.
+    # One lookup per (symbol, side), reused across every order below.
+    wanted = sorted({
+        (
+            row.symbol,
+            ASKS if (row.transaction_type or "").upper() == "BUY" else BIDS,
+            float(row.last_traded_price or 0),
+        )
+        for row in candidates
+    })
+    resolved = await asyncio.gather(
+        *(resolve_levels(sym, side, price) for sym, side, price in wanted),
+        return_exceptions=True,
+    )
+    books = {}
+    for (sym, side, _price), result in zip(wanted, resolved):
+        if isinstance(result, Exception):
+            logger.error(f"Depth resolution failed for {sym} {side}: {result}")
+            continue
+        books[(sym, side)] = result[0]
+
+    total_filled = 0
+    for row in candidates:
+        order_id = row.order_id
+        try:
+            # Lock the row. SKIP LOCKED means if a concurrent cancel (or a
+            # previous, still-uncommitted fill) holds this order, we skip it
+            # this cycle instead of blocking — it'll be retried next tick.
+            order = (
+                db.query(Order)
+                .filter(Order.order_id == order_id)
+                .with_for_update(skip_locked=True)
+                .first()
+            )
+            if order is None:
+                continue
+
+            # Re-validate UNDER the lock: between the scan and acquiring this
+            # lock a cancel/fill may have completed, so the order may no longer
+            # be pending. Never act on a stale status.
+            if (order.status or "").lower() != "pending":
+                db.rollback()
+                continue
+            # Only limit orders rest on the book; market orders never pend.
+            if (order.order_type or "").upper() != "LIMIT" or not order.limit_price:
+                db.rollback()
+                continue
+
+            is_buy = order.transaction_type.upper() == "BUY"
+            levels = books.get((order.symbol, ASKS if is_buy else BIDS))
+            if not levels:
+                # No book resolved for this symbol this cycle (the lookup
+                # failed); leave the order pending and retry on the next tick.
+                db.rollback()
+                continue
+
+            if is_buy:
+                filled = _fill_buy(order, db, levels)
+            else:
+                filled = _fill_sell(order, db, levels)
+
+            if filled > 0:
+                db.commit()
+                total_filled += filled
+                logger.info(
+                    f"Matched {filled} shares for order #{order.order_id} "
+                    f"({order.transaction_type} {order.symbol}). "
+                    f"Remaining: {order.remaining_quantity}."
+                )
+            else:
+                # Nothing filled — release the row lock immediately so a cancel
+                # isn't blocked waiting on an order we won't touch.
+                db.rollback()
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Failed to match order #{order_id}: {e}")
+
+    return total_filled
+
+
 async def match_pending_orders():
     """
     Background loop: periodically fill pending limit orders when the market
@@ -241,68 +319,9 @@ async def match_pending_orders():
         db_generator = get_db()
         db: Session = next(db_generator)
         try:
-            # Snapshot the candidate IDs only. We deliberately do NOT hold the
-            # ORM objects: each order is re-fetched under a row lock below so we
-            # never mutate an order a concurrent cancel is also touching.
-            pending_order_ids = [
-                row[0]
-                for row in db.query(Order.order_id)
-                .filter(func.lower(Order.status) == "pending")
-                .all()
-            ]
-
-            total_filled = 0
-            for order_id in pending_order_ids:
-                try:
-                    # Lock the row. SKIP LOCKED means if a concurrent cancel (or a
-                    # previous, still-uncommitted fill) holds this order, we skip
-                    # it this cycle instead of blocking — it'll be retried next tick.
-                    order = (
-                        db.query(Order)
-                        .filter(Order.order_id == order_id)
-                        .with_for_update(skip_locked=True)
-                        .first()
-                    )
-                    if order is None:
-                        continue
-
-                    # Re-validate UNDER the lock: between the scan and acquiring
-                    # this lock a cancel/fill may have completed, so the order may
-                    # no longer be pending. Never act on a stale status.
-                    if (order.status or "").lower() != "pending":
-                        db.rollback()
-                        continue
-                    # Only limit orders rest on the book; market orders never pend
-                    if (order.order_type or "").upper() != "LIMIT" or not order.limit_price:
-                        db.rollback()
-                        continue
-
-                    if order.transaction_type.upper() == "BUY":
-                        filled = _fill_buy(order, db)
-                    else:
-                        filled = _fill_sell(order, db)
-
-                    if filled > 0:
-                        db.commit()
-                        total_filled += filled
-                        logger.info(
-                            f"Matched {filled} shares for order #{order.order_id} "
-                            f"({order.transaction_type} {order.symbol}). "
-                            f"Remaining: {order.remaining_quantity}."
-                        )
-                    else:
-                        # Nothing filled — release the row lock immediately so a
-                        # cancel isn't blocked waiting on an order we won't touch.
-                        db.rollback()
-                except Exception as e:
-                    db.rollback()
-                    logger.error(
-                        f"Failed to match order #{order_id}: {e}"
-                    )
-
+            total_filled = await run_matching_cycle(db)
             if total_filled > 0:
                 logger.info(f"Matching cycle complete. Filled {total_filled} shares.")
-
         except Exception as e:
             db.rollback()
             logger.error(f"Matching engine cycle failed: {e}")

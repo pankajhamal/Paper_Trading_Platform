@@ -12,8 +12,7 @@ from app.models.portfolio import Portfolio
 from app.models.transaction import Transaction
 from app.models.order import Order
 from app.models.users import User
-from app.service.cache import LIVE_MARKET_DEPTH
-from app.service.nepse import generate_simulated_bid_depth
+from app.service.depth import BIDS, SOURCE_LABELS, SOURCE_SUMMARIES, resolve_levels
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +63,15 @@ async def execute_sell(payload: StockSell, db: Session, current_user: User) -> d
                 detail="Invalid limit price. NEPSE tick size requires prices to be in multiples of Rs. 0.10."
             )
 
-    # 2. Database Transaction block (Portfolio Verification & Locking)
+    # 2. Retrieve the bid side of the order book. Resolved BEFORE the portfolio
+    #    row lock is taken, because this can hit the bridge over HTTP and a lock
+    #    must never be held across a network call.
+    buy_levels, depth_source = await resolve_levels(
+        symbol, BIDS, float(stock.last_traded_price or 0)
+    )
+    execution_mode = SOURCE_LABELS[depth_source]
+
+    # 3. Database Transaction block (Portfolio Verification & Locking)
     try:
         portfolio_entry = db.query(Portfolio).filter(
             Portfolio.user_id == current_user.user_id,
@@ -78,21 +85,6 @@ async def execute_sell(payload: StockSell, db: Session, current_user: User) -> d
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Insufficient holdings. You own {available_qty} shares of {symbol}, but requested to sell {quantity}."
             )
-
-        # 3. Retrieve Order Book Bids from RAM Cache or Fallback
-        buy_levels = []
-        execution_mode = "Live Market Depth (RAM Cache)"
-        is_live_execution = True
-
-        cached_data = LIVE_MARKET_DEPTH.get(symbol)
-        if cached_data:
-            market_depth = cached_data.get("marketDepth") or cached_data
-            buy_levels = market_depth.get("buyMarketDepthList") or []
-
-        if not buy_levels:
-            is_live_execution = False
-            execution_mode = "Simulated Depth (EOD Price Fallback)"
-            buy_levels = generate_simulated_bid_depth(stock.last_traded_price)
 
         # 4. Matching Engine (Walk the Bids)
         remaining_qty_to_sell = quantity
@@ -195,11 +187,12 @@ async def execute_sell(payload: StockSell, db: Session, current_user: User) -> d
         logger.error(f"Error executing sell order for {symbol}: {e}")
         raise HTTPException(status_code=500, detail="Transaction failed due to an internal database error.")
 
-    execution_mode_str = "Live (Market Depth)" if is_live_execution else "Offline (Closing Price)"
+    execution_mode_str = SOURCE_SUMMARIES[depth_source]
 
     return {
         "message": f"Order processed successfully [{execution_mode_str}]. Status: {final_status}.",
         "order_type": order_type,
+        "depth_source": depth_source,
         "symbol": symbol,
         "quantity_requested": quantity,
         "quantity_sold": sold_qty,

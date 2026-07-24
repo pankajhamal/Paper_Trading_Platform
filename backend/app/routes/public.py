@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.database.connection import get_db
 from app.models.stock import Stock
-from app.routes.market import nepse_service, _normalize_summary
+from app.routes.market import resolve_summary
 
 logger = logging.getLogger(__name__)
 
@@ -54,13 +54,15 @@ async def public_overview(db: Session = Depends(get_db)):
         .order_by(Stock.percent_change.asc()).limit(5).all()
     )
 
-    # NEPSE headline from the bridge (null-safe if the bridge is down).
+    # NEPSE headline: live from the bridge, else the last stored snapshot, else
+    # nulls. Never raises — the landing page must render regardless.
     try:
-        nepse = _normalize_summary(await nepse_service.get_market_summary())
+        nepse = await resolve_summary(db)
     except Exception as e:
         logger.warning(f"public overview: market summary unavailable: {e}")
         nepse = {"point": None, "change": None, "percent_change": None,
-                 "turnover": None, "volume": None, "is_open": None}
+                 "turnover": None, "volume": None, "is_open": None,
+                 "is_stale": False, "as_of": None}
 
     return {
         "nepse": nepse,

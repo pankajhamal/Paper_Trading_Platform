@@ -21,6 +21,31 @@ from app.models.order import Order
 from app.models.withdrawal import WithdrawalRequest
 from app.models.fund_request import FundRequest
 from app.service.cache import LIVE_MARKET_DEPTH
+from app.service import depth as depth_service
+
+
+class _OfflineBridge:
+    """A bridge that has nothing to say — what the engine sees when nepse-bridge
+    is down or NEPSE is closed."""
+
+    async def get_market_depth(self, symbol):
+        return {"buyMarketDepthList": [], "sellMarketDepthList": []}
+
+
+@pytest.fixture(scope="session", autouse=True)
+def offline_bridge():
+    """Keep the suite hermetic and fast.
+
+    Depth resolution now calls the bridge per symbol, so without this a test
+    would fire real HTTP at NEPSE for a made-up ticker and wait out the timeout.
+    Stubbing it offline also pins the tests to the fallback path they assert on.
+    """
+    original = depth_service.nepse_service
+    depth_service.nepse_service = _OfflineBridge()
+    depth_service.clear_cache()
+    yield
+    depth_service.nepse_service = original
+    depth_service.clear_cache()
 
 
 @pytest.fixture(scope="session")
@@ -48,7 +73,10 @@ def test_stock():
     db.close()
 
     # Ensure no cached live depth for this symbol -> simulated fallback path.
+    # (The bridge is stubbed offline session-wide by `offline_bridge`, and no
+    # snapshot exists for a symbol invented microseconds ago.)
     LIVE_MARKET_DEPTH.pop(symbol, None)
+    depth_service.clear_cache()
 
     yield {"symbol": symbol, "stock_id": stock_id}
 

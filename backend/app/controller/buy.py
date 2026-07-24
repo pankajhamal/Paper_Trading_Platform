@@ -12,8 +12,7 @@ from app.models.portfolio import Portfolio
 from app.models.transaction import Transaction
 from app.models.order import Order
 from app.models.users import User
-from app.service.cache import LIVE_MARKET_DEPTH
-from app.service.nepse import generate_simulated_depth
+from app.service.depth import ASKS, SOURCE_LABELS, SOURCE_SUMMARIES, resolve_levels
 
 logger = logging.getLogger(__name__)
 
@@ -65,20 +64,12 @@ async def execute_buy(payload: StockBuy, db: Session, current_user: User) -> dic
                 detail="Invalid limit price. NEPSE tick size requires prices to be in multiples of Rs. 0.10."
             )
 
-    # 2. Retrieve Order Book from RAM Cache or Fallback
-    sell_levels = []
-    execution_mode = "Live Market Depth (RAM Cache)"
-    is_live_execution = True
-
-    cached_data = LIVE_MARKET_DEPTH.get(symbol)
-    if cached_data:
-        market_depth = cached_data.get("marketDepth") or cached_data
-        sell_levels = market_depth.get("sellMarketDepthList") or []
-
-    if not sell_levels:
-        is_live_execution = False
-        execution_mode = "Simulated Depth (EOD Price Fallback)"
-        sell_levels = generate_simulated_depth(stock.last_traded_price)
+    # 2. Retrieve the ask side of the order book. Resolved BEFORE any row lock is
+    #    taken below, because this can hit the bridge over HTTP.
+    sell_levels, depth_source = await resolve_levels(
+        symbol, ASKS, float(stock.last_traded_price or 0)
+    )
+    execution_mode = SOURCE_LABELS[depth_source]
 
     # 3. Matching Engine (Walk the Asks)
     remaining_qty_to_buy = quantity
@@ -210,11 +201,12 @@ async def execute_buy(payload: StockBuy, db: Session, current_user: User) -> dic
         logger.error(f"Error executing buy order for {symbol}: {e}")
         raise HTTPException(status_code=500, detail="Transaction failed due to an internal database error.")
 
-    execution_mode_str = "Live (Market Depth)" if is_live_execution else "Offline (Closing Price)"
+    execution_mode_str = SOURCE_SUMMARIES[depth_source]
 
     return {
         "message": f"Order processed successfully [{execution_mode_str}]. Status: {final_status}.",
         "order_type": order_type,
+        "depth_source": depth_source,
         "symbol": symbol,
         "quantity_requested": quantity,
         "quantity_filled": purchased_qty,

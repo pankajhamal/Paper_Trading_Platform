@@ -2,6 +2,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Lightbulb, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import API from '../../services/api';
+import AlertBell from './AlertBell';
+import StaleBadge from '../ui/StaleBadge';
 
 // Nepali-style compact currency: Arba (10^9) and Crore (10^7).
 const formatTurnover = (value) => {
@@ -52,6 +54,9 @@ const Navbar = () => {
   }, [refresh]);
 
   const isOpen = summary?.is_open === true;
+  // Open/closed and live/stale are two different facts: the bulb reports the
+  // exchange, the badge reports where these numbers came from.
+  const isStale = summary?.is_stale === true;
   const change = summary?.change ?? 0;
   const percentChange = summary?.percent_change ?? 0;
   const up = change >= 0;
@@ -107,6 +112,13 @@ const Navbar = () => {
       {/* Whole-market turnover + volume */}
       <Metric label="Turnover">{formatTurnover(summary?.turnover)}</Metric>
       <Metric label="Volume">{compactNumber(summary?.volume)}</Metric>
+
+      {isStale && <StaleBadge asOf={summary?.as_of} />}
+
+      {/* Triggered price alerts, pushed to the far right */}
+      <div className="ml-auto">
+        <AlertBell />
+      </div>
     </header>
   );
 };

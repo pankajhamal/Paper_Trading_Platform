@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from app.database.base import Base
 from app.database.connection import engine
-from app.service.schedular import update_all_stock_prices
+from app.service.schedular import update_all_stock_prices, restore_market_cache
 from app.service.expiration import cancel_expired_daily_orders
 from app.service.matcher import match_pending_orders
 from app.service.alert_checker import check_price_alerts
@@ -55,6 +55,10 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 async def startup_event():
     # Ensure the default admin account exists (from .env), before anything else.
     seed_default_admin()
+
+    # Warm the depth cache from the last saved snapshot so orders placed before
+    # the first successful bridge fetch still match against real order books.
+    restore_market_cache()
 
     #Start the periodic updater as a background task
     asyncio.create_task(update_all_stock_prices())

@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../../store/useAppStore';
 import { useHistoryStore } from '../../store/useHistoryStore';
 import API from '../../services/api';
+import StaleBadge from '../ui/StaleBadge';
 import {
   ResponsiveContainer,
   AreaChart,
@@ -168,7 +169,10 @@ const DashboardHome = () => {
               <Activity size={20} />
             </div>
             <div>
-              <h2 className="text-base font-bold text-slate-800">NEPSE Index</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-bold text-slate-800">NEPSE Index</h2>
+                {nepse?.is_stale && <StaleBadge asOf={nepse.as_of} />}
+              </div>
               <p className="text-xs text-slate-400">
                 {nepse?.granularity === 'daily'
                   ? 'Recent daily performance'

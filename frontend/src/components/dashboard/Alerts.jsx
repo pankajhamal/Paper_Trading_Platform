@@ -39,6 +39,7 @@ const Alerts = () => {
   const fetchAlerts = useAlertsStore((s) => s.fetchAlerts);
   const createAlert = useAlertsStore((s) => s.createAlert);
   const deleteAlert = useAlertsStore((s) => s.deleteAlert);
+  const markSeen = useAlertsStore((s) => s.markSeen);
 
   const stocks = useAppStore((s) => s.marketTickers);
   const fetchTickers = useAppStore((s) => s.fetchTickers);
@@ -58,6 +59,12 @@ const Alerts = () => {
     fetchAlerts();
     fetchTickers();
   }, [fetchAlerts, fetchTickers]);
+
+  // Looking at this screen counts as reading the notifications: clear the bell
+  // badge once the loaded list is on screen.
+  useEffect(() => {
+    if (alerts.length) markSeen();
+  }, [alerts, markSeen]);
 
   useEffect(() => {
     const handleClick = (e) => {

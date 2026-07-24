@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import API from '../services/api';
+import StaleBadge from '../components/ui/StaleBadge';
 
 const fmtPrice = (n) =>
   Number(n || 0).toLocaleString(undefined, {
@@ -139,8 +140,11 @@ export default function LandingPage() {
         <div className="rounded-2xl border border-slate-200 bg-white p-6 md:p-8 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-6">
             <div>
-              <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                NEPSE Index
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  NEPSE Index
+                </span>
+                {nepse.is_stale && <StaleBadge asOf={nepse.as_of} />}
               </div>
               <div className="mt-1 flex items-end gap-3">
                 <span className="text-4xl font-bold text-slate-900 tabular-nums">

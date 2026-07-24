@@ -3,6 +3,7 @@ import React, { useEffect } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import Navbar from '../components/layout/Navbar';
 import Sidebar from '../components/layout/Sidebar';
+import AlertToasts from '../components/layout/AlertToasts';
 import { useAppStore } from '../store/useAppStore';
 import { isTokenExpired } from '../services/api';
 
@@ -40,6 +41,9 @@ function Dashboard() {
           <Outlet />
         </main>
       </div>
+
+      {/* Price-alert popups — mounted here so they fire on any dashboard screen */}
+      <AlertToasts />
     </div>
   );
 }

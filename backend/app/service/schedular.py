@@ -6,9 +6,59 @@ from app.database.connection import get_db
 from app.models.stock import Stock
 from app.service.nepse import NepseService
 from app.service.cache import LIVE_MARKET_DEPTH
+from app.service.snapshot import (
+    LIVE_MARKET,
+    MARKET_SUMMARY,
+    NEPSE_INDEX,
+    load_snapshot,
+    save_snapshot,
+)
 
 logger = logging.getLogger(__name__)
 nepse_service = NepseService()
+
+
+def _fill_depth_cache(stocks: list) -> int:
+    """Replace the RAM depth cache with `stocks`, keyed by uppercase symbol."""
+    LIVE_MARKET_DEPTH.clear()
+    for item in stocks:
+        symbol = (item.get("symbol") or "").strip().upper()
+        if symbol:
+            LIVE_MARKET_DEPTH[symbol] = item
+    return len(LIVE_MARKET_DEPTH)
+
+
+def restore_market_cache() -> int:
+    """Warm the depth cache from the last saved market snapshot.
+
+    Called at startup so a restart while the bridge is down (or outside trading
+    hours) still has real order books to match against, instead of falling all
+    the way back to simulated depth. Returns how many symbols were restored.
+    """
+    db: Session = next(get_db())
+    try:
+        stocks, captured_at = load_snapshot(db, LIVE_MARKET)
+        if not stocks:
+            logger.info("No market snapshot stored yet; depth cache starts empty.")
+            return 0
+        count = _fill_depth_cache(stocks)
+        logger.info(f"Restored {count} symbols into the depth cache from the snapshot taken at {captured_at}.")
+        return count
+    finally:
+        db.close()
+
+
+async def _snapshot_headline_feeds(db: Session) -> None:
+    """Persist the index/summary feeds too, so the navbar and index chart have
+    something real to show once the bridge goes away."""
+    summary = await nepse_service.get_market_summary()
+    if summary:
+        save_snapshot(db, MARKET_SUMMARY, summary)
+
+    index = await nepse_service.get_nepse_index()
+    if index:
+        save_snapshot(db, NEPSE_INDEX, index)
+
 
 async def update_all_stock_prices():
     """
@@ -27,7 +77,22 @@ async def update_all_stock_prices():
             # 1. Fetch entire market in one network call
             market_data = await nepse_service.get_live_market()
             if not market_data:
-                logger.warning("Empty market data received. Skipping cycle.")
+                # Bridge down, or NEPSE closed and serving nothing. Keep whatever
+                # depth we already hold; only reach for the snapshot if the cache
+                # is cold (e.g. this is the first cycle after a restart).
+                if LIVE_MARKET_DEPTH:
+                    logger.warning(
+                        f"Empty market data received. Keeping {len(LIVE_MARKET_DEPTH)} cached symbols."
+                    )
+                else:
+                    stored, captured_at = load_snapshot(db, LIVE_MARKET)
+                    if stored:
+                        logger.warning(
+                            f"Empty market data received. Restored {_fill_depth_cache(stored)} "
+                            f"symbols from the snapshot taken at {captured_at}."
+                        )
+                    else:
+                        logger.warning("Empty market data received, and no snapshot stored. Skipping cycle.")
                 await asyncio.sleep(300)
                 continue
             
@@ -47,10 +112,10 @@ async def update_all_stock_prices():
             logger.info(f"Deduplicated to {len(unique_stocks)} unique stocks.")
 
             # 3. UPDATE RAM CACHE using deduplicated list
-            LIVE_MARKET_DEPTH.clear()
-            for item in unique_stocks:
-                symbol = item.get("symbol").strip().upper()
-                LIVE_MARKET_DEPTH[symbol] = item
+            _fill_depth_cache(unique_stocks)
+
+            # 3b. Persist it as the fallback for when the feed goes away.
+            save_snapshot(db, LIVE_MARKET, unique_stocks)
 
             # Helper to safely extract trading volume for sorting
             def get_volume(item):
@@ -105,7 +170,11 @@ async def update_all_stock_prices():
             
             db.commit()
             logger.info(f"Successfully updated {len(all_stocks)} unique stocks in database and RAM cache.")
-            
+
+            # 6. Refresh the headline snapshots while the feed is still up.
+            await _snapshot_headline_feeds(db)
+
+
         except Exception as e:
             db.rollback()
             logger.error(f"Failed to process stock update: {e}")
