@@ -102,6 +102,51 @@ export const useAppStore = create((set, get) => ({
     }
   },
 
+  // --- Forgot-password flow (OTP over email) ---
+
+  // Step 1: ask the backend to email a reset code. The response is intentionally
+  // generic (doesn't reveal whether the email is registered).
+  requestPasswordReset: async (email) => {
+    try {
+      const response = await API.post('/auth/forgot-password', { email });
+      return { success: true, message: response.data?.message };
+    } catch (error) {
+      const message =
+        error.response?.data?.detail || error.message || 'Could not send the reset code.';
+      return { success: false, error: message };
+    }
+  },
+
+  // Step 2 (optional pre-check): verify the code without consuming it.
+  verifyResetOtp: async (email, otp) => {
+    try {
+      await API.post('/auth/verify-otp', { email, otp });
+      return { success: true };
+    } catch (error) {
+      const message =
+        error.response?.data?.detail || error.message || 'Invalid or expired code.';
+      return { success: false, error: message };
+    }
+  },
+
+  // Step 3: submit the code + new password.
+  resetPassword: async (email, otp, newPassword) => {
+    try {
+      const response = await API.post('/auth/reset-password', {
+        email,
+        otp,
+        new_password: newPassword,
+      });
+      return { success: true, message: response.data?.message };
+    } catch (error) {
+      const detail = error.response?.data?.detail;
+      const message = Array.isArray(detail)
+        ? detail[0]?.msg || 'Could not reset password.'
+        : detail || error.message || 'Could not reset password.';
+      return { success: false, error: message };
+    }
+  },
+
   // Action: Log out
   logout: () => {
     localStorage.removeItem('token');

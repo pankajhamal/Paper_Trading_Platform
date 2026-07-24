@@ -9,6 +9,7 @@ from .alert import Alert
 from .withdrawal import WithdrawalRequest
 from .bank_account import BankAccount
 from .fund_request import FundRequest
+from .password_reset import PasswordResetOTP
 
 __all__ = [
     "Stock",
@@ -22,4 +23,5 @@ __all__ = [
     "WithdrawalRequest",
     "BankAccount",
     "FundRequest",
+    "PasswordResetOTP",
 ]

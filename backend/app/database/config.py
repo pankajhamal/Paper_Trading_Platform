@@ -6,9 +6,7 @@ class Settings(BaseSettings):
     ALGORITHM: str
     ACCESS_TOKEN_EXPIRES_MINUTES: int
 
-    # --- Default admin (seeded on startup if missing) ---
-    # No password default is shipped in code — it MUST come from the environment
-    # so a fresh deploy can never boot with a known, guessable admin password.
+    #admin
     DEFAULT_ADMIN_EMAIL: str = "admin@gmail.com"
     DEFAULT_ADMIN_PASSWORD: str
     DEFAULT_ADMIN_NAME: str = "Administrator"
@@ -23,6 +21,20 @@ class Settings(BaseSettings):
     MATCHER_INTERVAL_SECONDS: int = 10
     # How often the expiry scanner runs.
     EXPIRY_SCAN_INTERVAL_SECONDS: int = 30
+
+    # --- Password-reset OTP ---
+    OTP_LENGTH: int = 6
+    OTP_EXPIRY_MINUTES: int = 10
+    OTP_MAX_ATTEMPTS: int = 5
+
+    # --- Outgoing email (SMTP) ---
+    MAIL_HOST: str = "sandbox.smtp.mailtrap.io"
+    MAIL_PORT: int = 2525
+    MAIL_USERNAME: str = ""
+    MAIL_PASSWORD: str = ""
+    MAIL_FROM: str = "no-reply@papertrade.local"
+    MAIL_FROM_NAME: str = "Paper Trading Platform"
+    MAIL_STARTTLS: bool = True
 
     model_config = SettingsConfigDict(
         env_file=".env",

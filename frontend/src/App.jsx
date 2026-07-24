@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard';
 import LandingPage from './pages/LandingPage';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
 import Orders from './components/dashboard/Orders'
 import Portfolio from './components/dashboard/Portfolio';
 import Market from './components/dashboard/Market';
@@ -52,6 +53,7 @@ function App() {
           {/* Authentication Routes */}
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
           
           {/* Protected Workspace Routes inside Dashboard Shell */}
           <Route path="/" element={

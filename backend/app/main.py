@@ -6,7 +6,7 @@ from app.service.expiration import cancel_expired_daily_orders
 from app.service.matcher import match_pending_orders
 from app.service.alert_checker import check_price_alerts
 from app.service.seed import seed_default_admin
-from app.models import User, Wallet, Transaction, Stock, Portfolio, Order, WithdrawalRequest, BankAccount, FundRequest
+from app.models import User, Wallet, Transaction, Stock, Portfolio, Order, WithdrawalRequest, BankAccount, FundRequest, PasswordResetOTP
 import asyncio
 import os
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,6 +16,7 @@ from fastapi.staticfiles import StaticFiles
 #Import Routes
 from app.auth.register import router as register_router
 from app.auth.login import router as login_router
+from app.auth.password_reset import router as password_reset_router
 from app.routes.trade import router as trade_router
 from app.routes.user import router as user_router
 from app.routes.stock import router as stock_router
@@ -76,6 +77,7 @@ def health_check():
 
 app.include_router(register_router)
 app.include_router(login_router)
+app.include_router(password_reset_router)
 app.include_router(trade_router)
 app.include_router(user_router)
 app.include_router(stock_router)
