@@ -1,0 +1,198 @@
+<mxfile host="app.diagrams.net" type="device">
+  <diagram name="Use Case Diagram" id="usecase-papertrade">
+    <mxGraphModel dx="1100" dy="1500" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="1654" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- ===================== SYSTEM BOUNDARY ===================== -->
+        <mxCell id="boundary" value="PaperTrade — NEPSE Paper Trading Simulator" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#5A6C7D;strokeWidth=2;verticalAlign=top;fontSize=16;fontStyle=1;fontColor=#1F3548;spacingTop=8;" vertex="1" parent="1">
+          <mxGeometry x="300" y="40" width="620" height="1360" as="geometry" />
+        </mxCell>
+
+        <!-- ===================== ACTORS (LEFT) ===================== -->
+        <mxCell id="guest" value="Guest" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fontSize=13;fontStyle=1;strokeColor=#1F3548;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="150" y="140" width="50" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="trader" value="Registered User" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fontSize=13;fontStyle=1;strokeColor=#1F3548;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="150" y="540" width="50" height="95" as="geometry" />
+        </mxCell>
+
+        <!-- ===================== ACTORS (RIGHT) ===================== -->
+        <mxCell id="admin" value="Administrator" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fontSize=13;fontStyle=1;strokeColor=#1F3548;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="1020" y="940" width="50" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="system" value="System&#xa;(background services)" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;fontSize=13;fontStyle=1;strokeColor=#1F3548;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="1020" y="1180" width="50" height="95" as="geometry" />
+        </mxCell>
+
+        <!-- ===================== USE CASES : ACCOUNT ===================== -->
+        <mxCell id="u1" value="Register" style="ellipse;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="380" y="100" width="200" height="48" as="geometry" />
+        </mxCell>
+        <mxCell id="u2" value="Log In" style="ellipse;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="380" y="160" width="200" height="48" as="geometry" />
+        </mxCell>
+        <mxCell id="u3" value="Reset Password" style="ellipse;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="380" y="220" width="200" height="48" as="geometry" />
+        </mxCell>
+
+        <!-- ===================== USE CASES : TRADING / PORTFOLIO / FUNDS ===================== -->
+        <mxCell id="u4" value="View Prices and Index" style="ellipse;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="380" y="300" width="200" height="48" as="geometry" />
+        </mxCell>
+        <mxCell id="u5" value="Place Order" style="ellipse;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="380" y="360" width="200" height="48" as="geometry" />
+        </mxCell>
+        <mxCell id="u6" value="Cancel Order" style="ellipse;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="380" y="420" width="200" height="48" as="geometry" />
+        </mxCell>
+        <mxCell id="u8" value="View Portfolio" style="ellipse;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="380" y="480" width="200" height="48" as="geometry" />
+        </mxCell>
+        <mxCell id="u9" value="View History" style="ellipse;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="380" y="540" width="200" height="48" as="geometry" />
+        </mxCell>
+        <mxCell id="u10" value="Manage Watchlist" style="ellipse;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="380" y="600" width="200" height="48" as="geometry" />
+        </mxCell>
+        <mxCell id="u11" value="Manage Alerts" style="ellipse;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="380" y="660" width="200" height="48" as="geometry" />
+        </mxCell>
+        <mxCell id="u12" value="Load Funds" style="ellipse;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="380" y="720" width="200" height="48" as="geometry" />
+        </mxCell>
+        <mxCell id="u13" value="Request Top-Up" style="ellipse;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="380" y="780" width="200" height="48" as="geometry" />
+        </mxCell>
+        <mxCell id="u14" value="Request Withdrawal" style="ellipse;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="380" y="840" width="200" height="48" as="geometry" />
+        </mxCell>
+
+        <!-- ===== INTERNAL USE CASE (included, no direct actor) ===== -->
+        <mxCell id="u7" value="Hold / Release&#xa;Escrow" style="ellipse;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="650" y="760" width="200" height="48" as="geometry" />
+        </mxCell>
+
+        <!-- ===================== USE CASES : ADMINISTRATION ===================== -->
+        <mxCell id="u15" value="View Overview" style="ellipse;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="380" y="920" width="200" height="48" as="geometry" />
+        </mxCell>
+        <mxCell id="u16" value="Manage Users" style="ellipse;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="380" y="980" width="200" height="48" as="geometry" />
+        </mxCell>
+        <mxCell id="u17" value="Approve Requests" style="ellipse;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="380" y="1040" width="200" height="48" as="geometry" />
+        </mxCell>
+
+        <!-- ===================== USE CASES : AUTOMATED SERVICES ===================== -->
+        <mxCell id="u18" value="Update Prices" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="380" y="1120" width="200" height="48" as="geometry" />
+        </mxCell>
+        <mxCell id="u19" value="Match Limit Orders" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="380" y="1180" width="200" height="48" as="geometry" />
+        </mxCell>
+        <mxCell id="u20" value="Expire Day Orders" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="380" y="1240" width="200" height="48" as="geometry" />
+        </mxCell>
+        <mxCell id="u21" value="Trigger Alerts" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="380" y="1300" width="200" height="48" as="geometry" />
+        </mxCell>
+
+        <!-- ===================== GUEST ASSOCIATIONS ===================== -->
+        <mxCell id="e1" style="endArrow=none;html=1;edgeStyle=none;rounded=0;strokeColor=#333333;exitX=1;exitY=0.4;exitDx=0;exitDy=0;" edge="1" parent="1" source="guest" target="u1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" style="endArrow=none;html=1;edgeStyle=none;rounded=0;strokeColor=#333333;exitX=1;exitY=0.5;exitDx=0;exitDy=0;" edge="1" parent="1" source="guest" target="u2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" style="endArrow=none;html=1;edgeStyle=none;rounded=0;strokeColor=#333333;exitX=1;exitY=0.6;exitDx=0;exitDy=0;" edge="1" parent="1" source="guest" target="u3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ===================== TRADER ASSOCIATIONS ===================== -->
+        <mxCell id="e4" style="endArrow=none;html=1;edgeStyle=none;rounded=0;strokeColor=#333333;exitX=1;exitY=0.3;exitDx=0;exitDy=0;" edge="1" parent="1" source="trader" target="u4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" style="endArrow=none;html=1;edgeStyle=none;rounded=0;strokeColor=#333333;exitX=1;exitY=0.35;exitDx=0;exitDy=0;" edge="1" parent="1" source="trader" target="u5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" style="endArrow=none;html=1;edgeStyle=none;rounded=0;strokeColor=#333333;exitX=1;exitY=0.4;exitDx=0;exitDy=0;" edge="1" parent="1" source="trader" target="u6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" style="endArrow=none;html=1;edgeStyle=none;rounded=0;strokeColor=#333333;exitX=1;exitY=0.45;exitDx=0;exitDy=0;" edge="1" parent="1" source="trader" target="u8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e9" style="endArrow=none;html=1;edgeStyle=none;rounded=0;strokeColor=#333333;exitX=1;exitY=0.5;exitDx=0;exitDy=0;" edge="1" parent="1" source="trader" target="u9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e10" style="endArrow=none;html=1;edgeStyle=none;rounded=0;strokeColor=#333333;exitX=1;exitY=0.55;exitDx=0;exitDy=0;" edge="1" parent="1" source="trader" target="u10">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e11" style="endArrow=none;html=1;edgeStyle=none;rounded=0;strokeColor=#333333;exitX=1;exitY=0.6;exitDx=0;exitDy=0;" edge="1" parent="1" source="trader" target="u11">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e12" style="endArrow=none;html=1;edgeStyle=none;rounded=0;strokeColor=#333333;exitX=1;exitY=0.65;exitDx=0;exitDy=0;" edge="1" parent="1" source="trader" target="u12">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e13" style="endArrow=none;html=1;edgeStyle=none;rounded=0;strokeColor=#333333;exitX=1;exitY=0.7;exitDx=0;exitDy=0;" edge="1" parent="1" source="trader" target="u13">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e14" style="endArrow=none;html=1;edgeStyle=none;rounded=0;strokeColor=#333333;exitX=1;exitY=0.75;exitDx=0;exitDy=0;" edge="1" parent="1" source="trader" target="u14">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ===================== ADMIN ASSOCIATIONS ===================== -->
+        <mxCell id="e15" style="endArrow=none;html=1;edgeStyle=none;rounded=0;strokeColor=#333333;entryX=0;entryY=0.4;entryDx=0;entryDy=0;" edge="1" parent="1" source="u15" target="admin">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e16" style="endArrow=none;html=1;edgeStyle=none;rounded=0;strokeColor=#333333;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="u16" target="admin">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e17" style="endArrow=none;html=1;edgeStyle=none;rounded=0;strokeColor=#333333;entryX=0;entryY=0.6;entryDx=0;entryDy=0;" edge="1" parent="1" source="u17" target="admin">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ===================== SYSTEM ASSOCIATIONS ===================== -->
+        <mxCell id="e18" style="endArrow=none;html=1;edgeStyle=none;rounded=0;strokeColor=#333333;entryX=0;entryY=0.35;entryDx=0;entryDy=0;" edge="1" parent="1" source="u18" target="system">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e19" style="endArrow=none;html=1;edgeStyle=none;rounded=0;strokeColor=#333333;entryX=0;entryY=0.45;entryDx=0;entryDy=0;" edge="1" parent="1" source="u19" target="system">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e20" style="endArrow=none;html=1;edgeStyle=none;rounded=0;strokeColor=#333333;entryX=0;entryY=0.55;entryDx=0;entryDy=0;" edge="1" parent="1" source="u20" target="system">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e21" style="endArrow=none;html=1;edgeStyle=none;rounded=0;strokeColor=#333333;entryX=0;entryY=0.65;entryDx=0;entryDy=0;" edge="1" parent="1" source="u21" target="system">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ===================== INCLUDE RELATIONS ===================== -->
+        <mxCell id="i1" value="&#171;include&#187;" style="endArrow=open;endSize=10;dashed=1;html=1;edgeStyle=none;rounded=0;strokeColor=#2D7D46;fontSize=11;fontColor=#2D7D46;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.2;entryDx=0;entryDy=0;" edge="1" parent="1" source="u5" target="u7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="i2" value="&#171;include&#187;" style="endArrow=open;endSize=10;dashed=1;html=1;edgeStyle=none;rounded=0;strokeColor=#2D7D46;fontSize=11;fontColor=#2D7D46;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.4;entryDx=0;entryDy=0;" edge="1" parent="1" source="u6" target="u7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="i3" value="&#171;include&#187;" style="endArrow=open;endSize=10;dashed=1;html=1;edgeStyle=none;rounded=0;strokeColor=#2D7D46;fontSize=11;fontColor=#2D7D46;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.8;entryDx=0;entryDy=0;" edge="1" parent="1" source="u19" target="u7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ===================== LEGEND ===================== -->
+        <mxCell id="legend" value="Legend" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#5A6C7D;verticalAlign=top;fontSize=12;fontStyle=1;spacingTop=4;" vertex="1" parent="1">
+          <mxGeometry x="100" y="1240" width="180" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="lg1" value="User-facing" style="ellipse;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="115" y="1268" width="150" height="32" as="geometry" />
+        </mxCell>
+        <mxCell id="lg2" value="Automated" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="115" y="1308" width="150" height="32" as="geometry" />
+        </mxCell>
+        <mxCell id="lg3" value="Internal (included)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="115" y="1348" width="150" height="32" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
