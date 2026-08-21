@@ -177,7 +177,7 @@ def test_stale_levels_outside_the_circuit_band_are_refused(symbol, bridge):
     bridge()  # bridge offline
 
     # ...must not fill an order once the stock trades at Rs 260: 101 is far
-    # below the ±10% band, and filling there would hand out free money.
+    # below the ±15% band, and filling there would hand out free money.
     levels, source = resolve(symbol, ASKS, price=260.0)
 
     assert source == "simulated"
@@ -188,7 +188,7 @@ def test_snapshot_levels_inside_the_band_are_still_used(symbol, bridge):
     db = SessionLocal()
     save_snapshot(db, snapshot_key(symbol), {
         "sellMarketDepthList": [
-            {"quantity": 10, "price": 101.0},   # within ±10% of 100
+            {"quantity": 10, "price": 101.0},   # within ±15% of 100
             {"quantity": 10, "price": 140.0},   # drifted far out
         ],
         "buyMarketDepthList": [],

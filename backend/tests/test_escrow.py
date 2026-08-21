@@ -39,7 +39,7 @@ def test_limit_buy_escrows_then_cancel_refunds_exactly(client, user_headers, tes
 
 
 def test_limit_buy_rejects_when_below_circuit_floor(client, user_headers, test_stock):
-    """±10% circuit filter: last price 100 -> floor 90. A limit of 80 is rejected
+    """±15% circuit filter: last price 100 -> floor 85. A limit of 80 is rejected
     and no escrow is taken."""
     headers = user_headers["headers"]
     symbol = test_stock["symbol"]

@@ -42,9 +42,9 @@ async def execute_buy(payload: StockBuy, db: Session, current_user: User) -> dic
         limit_price_dec = Decimal(str(limit_price))
         last_price_dec = Decimal(str(stock.last_traded_price))
 
-        # A. NEPSE Circuit Filter Check (+/- 10% of last price)
-        lower_circuit = last_price_dec * Decimal("0.90")
-        upper_circuit = last_price_dec * Decimal("1.10")
+        # A. NEPSE Circuit Filter Check (+/- 15% of last price)
+        lower_circuit = last_price_dec * Decimal("0.85")
+        upper_circuit = last_price_dec * Decimal("1.15")
 
         if limit_price_dec < lower_circuit or limit_price_dec > upper_circuit:
             raise HTTPException(
@@ -52,7 +52,7 @@ async def execute_buy(payload: StockBuy, db: Session, current_user: User) -> dic
                 detail=(
                     f"Limit price Rs. {limit_price_dec:,.2f} violates NEPSE circuit filter. "
                     f"Must be between Rs. {lower_circuit:,.2f} and Rs. {upper_circuit:,.2f} "
-                    f"(+/- 10% of last traded price Rs. {last_price_dec:,.2f})."
+                    f"(+/- 15% of last traded price Rs. {last_price_dec:,.2f})."
                 )
             )
 

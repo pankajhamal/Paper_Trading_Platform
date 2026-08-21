@@ -430,10 +430,10 @@ const Orders = () => {
                   </div>
                   {form.order_type === "LIMIT" && (
                     <div className="flex justify-between text-slate-500 font-medium">
-                      <span>Allowed Limit Range (±10%):</span>
+                      <span>Allowed Limit Range (±15%):</span>
                       <span className="text-slate-700 font-bold bg-slate-100 px-1 rounded">
-                        Rs. {(activeStock.current_price * 0.9).toFixed(1)} - Rs.{" "}
-                        {(activeStock.current_price * 1.1).toFixed(1)}
+                        Rs. {(activeStock.current_price * 0.85).toFixed(1)} - Rs.{" "}
+                        {(activeStock.current_price * 1.15).toFixed(1)}
                       </span>
                     </div>
                   )}

@@ -19,7 +19,7 @@ So depth is resolved here, per symbol, through one ordered chain:
 Two guards keep this honest:
 
 * **Stale books are band-limited.** A stored book is only trusted where its
-  levels sit inside NEPSE's ±10% circuit band around the current price. Filling
+  levels sit inside NEPSE's ±15% circuit band around the current price. Filling
   a market buy against yesterday's Rs 200 ask when the stock now trades at Rs 260
   would hand out free money.
 * **Levels are sorted best-first** (asks ascending, bids descending) before the
@@ -60,8 +60,8 @@ OPEN_TTL_SECONDS = 20        # trading: books move, keep it short
 CLOSED_TTL_SECONDS = 300     # closed: the book isn't going to change
 FALLBACK_TTL_SECONDS = 60    # nothing real available; don't retry on every order
 
-# Stored depth is only trusted inside NEPSE's ±10% circuit band.
-CIRCUIT_BAND = 0.10
+# Stored depth is only trusted inside NEPSE's ±15% circuit band.
+CIRCUIT_BAND = 0.15
 
 # Don't rewrite a symbol's snapshot more than once a minute.
 SNAPSHOT_WRITE_INTERVAL_SECONDS = 60
