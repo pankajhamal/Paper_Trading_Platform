@@ -3,15 +3,18 @@ uvicorn
 sqlalchemy
 psycopg2-binary
 psycopg2
+psycopg
 python-dotenv
 alembic
 pydantic-settings
 alembic
 dotenv
+httpx
 bcrypt==3.2.2
 passlib==1.7.4
 email-validator
-jose-1.0.0
-jwt-1.4.0
+python-multipart
+python-jose>=1.0.0
+jwt>=1.4.0
 # Testing
 pytest
